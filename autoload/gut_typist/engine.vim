@@ -115,6 +115,11 @@ function! gut_typist#engine#OnTextChanged() abort
   call gut_typist#stats#UpdateFromComparison(s:state.stats, l:typed_len, l:correct_count, s:state.prev_typed_len)
   let s:state.prev_typed_len = l:typed_len
 
+  " Sync source scroll first so highlights apply to the post-scroll
+  " visible range (avoids a one-frame unhighlighted blip on scroll).
+  let l:pos = gut_typist#util#OffsetToPos(s:state.source_lines, min([l:typed_len, l:source_len - 1]))
+  call gut_typist#ui#SyncSourceScroll(l:pos[0])
+
   " Apply highlights on visible range of source buffer
   let [l:top, l:bot] = gut_typist#ui#GetVisibleRange()
   call gut_typist#highlight#Apply(l:ui.source_buf, s:state.source_lines, l:typed_len, l:matches, l:top, l:bot)
@@ -127,10 +132,6 @@ function! gut_typist#engine#OnTextChanged() abort
     let l:progress = (l:typed_len * 100.0) / l:source_len
   endif
   call gut_typist#ui#UpdateStatsDisplay(l:wpm, l:accuracy, l:progress)
-
-  " Sync source scroll to typing position
-  let l:pos = gut_typist#util#OffsetToPos(s:state.source_lines, min([l:typed_len, l:source_len - 1]))
-  call gut_typist#ui#SyncSourceScroll(l:pos[0])
 
   " Trigger debounced save
   if s:state.save_timer isnot v:null

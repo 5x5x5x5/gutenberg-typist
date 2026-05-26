@@ -109,7 +109,26 @@ function! gut_typist#ui#SyncSourceScroll(line_0indexed) abort
   endif
   let l:line_count = len(getbufline(s:state.source_buf, 1, '$'))
   let l:target = min([a:line_0indexed + 1, l:line_count])
-  call win_execute(s:state.source_win, 'call cursor(' . l:target . ', 0)')
+
+  let l:info = getwininfo(s:state.source_win)
+  if empty(l:info)
+    return
+  endif
+  let l:topline = l:info[0].topline
+  let l:botline = l:info[0].botline
+  let l:scrolloff = 5
+
+  " cursor() inside win_execute moves the cursor but does NOT update the
+  " window's topline for an unfocused window, so the source pane stays
+  " stuck on the first screen. Force a viewport update when the target
+  " line is outside the scrolloff zone.
+  if l:target > l:botline - l:scrolloff || l:target < l:topline + l:scrolloff
+    call win_execute(s:state.source_win,
+          \ printf('call cursor(%d, 1) | normal! zz', l:target))
+  else
+    call win_execute(s:state.source_win,
+          \ printf('call cursor(%d, 1)', l:target))
+  endif
 endfunction
 
 function! gut_typist#ui#GetVisibleRange() abort
