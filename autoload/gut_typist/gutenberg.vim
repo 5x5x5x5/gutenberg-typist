@@ -4,7 +4,7 @@ function! s:HttpGet(url, Callback) abort
   let l:ctx = {'data': '', 'Callback': a:Callback}
 
   function! l:ctx.on_out(_ch, msg) abort
-    let self.data .= a:msg . "\n"
+    let self.data .= a:msg
   endfunction
 
   function! l:ctx.on_close(_ch) abort
@@ -48,6 +48,10 @@ function! s:OnSearchResult(Callback, body, err) abort
     call a:Callback(v:null, 'Failed to parse search results')
     return
   endtry
+  if type(l:data) != v:t_dict
+    call a:Callback(v:null, 'Unexpected response from Gutenberg API')
+    return
+  endif
   let l:results = []
   for l:book in get(l:data, 'results', [])
     let l:authors = []
