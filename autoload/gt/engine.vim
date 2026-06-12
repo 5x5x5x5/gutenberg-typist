@@ -5,6 +5,7 @@ let s:state = {
       \ 'source_lines': [],
       \ 'stats': {},
       \ 'prev_typed_len': 0,
+      \ 'resume_offset': 0,
       \ 'save_timer': v:null,
       \}
 
@@ -31,6 +32,7 @@ function! gt#engine#Start(book_id, source_text, resume_offset) abort
         \ 'source_lines': l:source_lines,
         \ 'stats': gt#stats#New(),
         \ 'prev_typed_len': 0,
+        \ 'resume_offset': a:resume_offset,
         \ 'save_timer': v:null,
         \}
 
@@ -111,9 +113,15 @@ function! gt#engine#OnTextChanged() abort
     let l:i += 1
   endwhile
 
-  " Update stats
-  call gt#stats#UpdateFromComparison(s:state.stats, l:typed_len, l:correct_count, s:state.prev_typed_len)
-  let s:state.prev_typed_len = l:typed_len
+  " Update stats with session-relative counts: the resumed prefix is
+  " reconstructed from the source (so it always fully matches) and must not
+  " count as typed or correct — it would inflate lifetime chars and produce
+  " fluke best_wpm values that max-merge never forgets.
+  let l:base = min([s:state.resume_offset, l:source_len])
+  let l:rel_typed = max([l:typed_len - l:base, 0])
+  let l:rel_correct = max([l:correct_count - l:base, 0])
+  call gt#stats#UpdateFromComparison(s:state.stats, l:rel_typed, l:rel_correct, s:state.prev_typed_len)
+  let s:state.prev_typed_len = l:rel_typed
 
   " Sync source scroll first so highlights apply to the post-scroll
   " visible range (avoids a one-frame unhighlighted blip on scroll).
@@ -167,15 +175,21 @@ function! gt#engine#Stop() abort
   call s:SaveSession()
 
   " Update lifetime stats
-  let l:lifetime = gt#storage#LoadLifetimeStats()
-  let l:lifetime.total_chars = l:lifetime.total_chars + s:state.stats.total_chars_typed
-  let l:lifetime.correct_chars = l:lifetime.correct_chars + s:state.stats.correct_chars
+  let l:deltas = {
+        \ 'total_chars': s:state.stats.total_chars_typed,
+        \ 'correct_chars': s:state.stats.correct_chars,
+        \ 'sessions_count': 1,
+        \}
   if s:state.stats.start_time isnot v:null
     let l:elapsed = reltimefloat(reltime()) - s:state.stats.start_time
-    let l:lifetime.total_time_seconds = l:lifetime.total_time_seconds + l:elapsed
+    let l:deltas.total_time_seconds = float2nr(round(l:elapsed))
+    " Session-average WPM; sessions under 10s give fluke values, skip them.
+    if l:elapsed > 10.0 && s:state.stats.total_chars_typed > 0
+      let l:deltas.best_wpm = float2nr(round(
+            \ (s:state.stats.total_chars_typed / 5.0) / (l:elapsed / 60.0)))
+    endif
   endif
-  let l:lifetime.sessions_count = l:lifetime.sessions_count + 1
-  call gt#storage#SaveLifetimeStats(l:lifetime)
+  call gt#storage#AddLifetimeDeltas(l:deltas)
 
   " Clear autocmds
   augroup GTEngine
@@ -203,6 +217,7 @@ function! gt#engine#Stop() abort
         \ 'source_lines': [],
         \ 'stats': {},
         \ 'prev_typed_len': 0,
+        \ 'resume_offset': 0,
         \ 'save_timer': v:null,
         \}
 

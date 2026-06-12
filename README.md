@@ -56,6 +56,8 @@ No `Setup()` call is needed — the plugin loads itself. Only call
 | `:GT stop` | Save progress and close |
 | `:GT stats` | Show session and lifetime statistics |
 | `:GT library` | Browse previously downloaded books |
+| `:GT export [file]` | Export stats and book progress to a portable bundle |
+| `:GT import <file>` | Merge a bundle exported on another machine |
 
 ### Quick start
 
@@ -97,8 +99,38 @@ Books and session data are stored under `~/.vim/gutenberg-typist/`:
 books/{id}/text.txt        -- cleaned book text
 books/{id}/metadata.json   -- title, author
 sessions/{id}.json         -- typing progress
-lifetime_stats.json        -- accumulated stats
+lifetime_stats.json        -- accumulated stats, one record per machine
 ```
+
+## Syncing stats between machines
+
+Lifetime stats are tracked per machine and merge cleanly, so you can
+practice on several machines and combine the results:
+
+```vim
+" On machine A:
+:GT export                 " writes ~/gutenberg-typist-export.json
+" ...copy the file to machine B (scp, Drive, USB)...
+" On machine B:
+:GT import ~/gutenberg-typist-export.json
+```
+
+Importing is idempotent: re-importing the same bundle, or an older one,
+never double-counts. Each machine's counters only ever grow, and importing
+keeps the newest snapshot per machine. Book progress is merged per book by
+`gt#storage#MergeSession()`.
+
+Machine identity defaults to `hostname()`. Override it if two of your
+machines share a hostname, or to keep hostnames out of bundles you share:
+
+```vim
+let g:gt_machine_id = 'my-laptop'
+```
+
+Set it before your first session if you plan to use it: renaming an
+existing machine starts a fresh record, and the old history stays under
+the previous name (totals remain correct, shown as an extra machine in
+`:GT stats`).
 
 ## License
 

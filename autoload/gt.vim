@@ -4,7 +4,7 @@ endfunction
 
 function! gt#Command(...) abort
   if a:0 < 1
-    echohl WarningMsg | echomsg 'GT: Usage: :GT <search|start|resume|stop|stats|library>' | echohl None
+    echohl WarningMsg | echomsg 'GT: Usage: :GT <search|start|resume|stop|stats|library|export|import>' | echohl None
     return
   endif
 
@@ -31,16 +31,44 @@ function! gt#Command(...) abort
     call s:ShowStats()
   elseif l:subcmd ==# 'library'
     call s:Library()
+  elseif l:subcmd ==# 'export'
+    let l:path = a:0 >= 2 ? join(a:000[1:], ' ') : '~/gutenberg-typist-export.json'
+    let l:res = gt#storage#ExportBundle(fnamemodify(l:path, ':p'))
+    if l:res.ok
+      echomsg 'GT: ' . l:res.msg
+    else
+      echohl WarningMsg | echomsg 'GT: ' . l:res.msg | echohl None
+    endif
+  elseif l:subcmd ==# 'import'
+    if a:0 < 2
+      echohl WarningMsg | echomsg 'GT: Usage: :GT import <file>' | echohl None
+      return
+    endif
+    if gt#engine#IsActive()
+      echohl WarningMsg | echomsg 'GT: Stop the current session (:GT stop) before importing' | echohl None
+      return
+    endif
+    let l:res = gt#storage#ImportBundle(fnamemodify(join(a:000[1:], ' '), ':p'))
+    if l:res.ok
+      echomsg 'GT: ' . l:res.msg
+    else
+      echohl ErrorMsg | echomsg 'GT: ' . l:res.msg | echohl None
+    endif
   else
     echohl ErrorMsg | echomsg 'GT: Unknown command: ' . l:subcmd | echohl None
   endif
 endfunction
 
 function! gt#Complete(arglead, cmdline, cursorpos) abort
-  let l:subcmds = ['search', 'start', 'resume', 'stop', 'stats', 'library']
-  let l:parts = split(a:cmdline, '\s\+')
-  if len(l:parts) <= 2
+  let l:subcmds = ['search', 'start', 'resume', 'stop', 'stats', 'library', 'export', 'import']
+  let l:before = strpart(a:cmdline, 0, a:cursorpos)
+  let l:parts = split(l:before, '\s\+')
+  " Still typing the subcommand itself (no space after it yet)
+  if len(l:parts) < 2 || (len(l:parts) == 2 && l:before !~# '\s$')
     return filter(copy(l:subcmds), 'v:val =~# "^" . a:arglead')
+  endif
+  if index(['export', 'import'], l:parts[1]) >= 0
+    return getcompletion(a:arglead, 'file')
   endif
   return []
 endfunction
@@ -141,6 +169,9 @@ function! s:ShowStats() abort
   call add(l:lines, '')
   call add(l:lines, '-- Lifetime --')
   call add(l:lines, printf('  Sessions:  %d', l:lifetime.sessions_count))
+  if get(l:lifetime, 'machines_count', 1) > 1
+    call add(l:lines, printf('  Machines:  %d', l:lifetime.machines_count))
+  endif
   call add(l:lines, printf('  Chars:     %d typed, %d correct', l:lifetime.total_chars, l:lifetime.correct_chars))
   if l:lifetime.total_chars > 0
     call add(l:lines, printf('  Accuracy:  %.1f%%',
@@ -153,6 +184,9 @@ function! s:ShowStats() abort
       call add(l:lines, printf('  Avg WPM:   %.0f',
             \ (l:lifetime.total_chars / 5.0) / l:mins))
     endif
+  endif
+  if get(l:lifetime, 'best_wpm', 0) > 0
+    call add(l:lines, printf('  Best WPM:  %d', l:lifetime.best_wpm))
   endif
 
   " Show in popup window
