@@ -2,7 +2,7 @@ let s:base_dir = ''
 
 function! s:GetBaseDir() abort
   if s:base_dir ==# ''
-    let s:base_dir = expand('~/.vim/gut-typist')
+    let s:base_dir = expand('~/.vim/gutenberg-typist')
   endif
   return s:base_dir
 endfunction
@@ -58,19 +58,19 @@ function! s:BookDir(book_id) abort
   return s:GetBaseDir() . '/books/' . a:book_id
 endfunction
 
-function! gut_typist#storage#SaveBookText(book_id, text) abort
+function! gt#storage#SaveBookText(book_id, text) abort
   return s:WriteFile(s:BookDir(a:book_id) . '/text.txt', a:text)
 endfunction
 
-function! gut_typist#storage#LoadBookText(book_id) abort
+function! gt#storage#LoadBookText(book_id) abort
   return s:ReadFile(s:BookDir(a:book_id) . '/text.txt')
 endfunction
 
-function! gut_typist#storage#SaveBookMetadata(book_id, metadata) abort
+function! gt#storage#SaveBookMetadata(book_id, metadata) abort
   return s:WriteJson(s:BookDir(a:book_id) . '/metadata.json', a:metadata)
 endfunction
 
-function! gut_typist#storage#LoadBookMetadata(book_id) abort
+function! gt#storage#LoadBookMetadata(book_id) abort
   return s:ReadJson(s:BookDir(a:book_id) . '/metadata.json')
 endfunction
 
@@ -80,16 +80,16 @@ function! s:SessionPath(book_id) abort
   return s:GetBaseDir() . '/sessions/' . a:book_id . '.json'
 endfunction
 
-function! gut_typist#storage#SaveSession(book_id, session) abort
+function! gt#storage#SaveSession(book_id, session) abort
   let a:session.last_active = localtime()
   return s:WriteJson(s:SessionPath(a:book_id), a:session)
 endfunction
 
-function! gut_typist#storage#LoadSession(book_id) abort
+function! gt#storage#LoadSession(book_id) abort
   return s:ReadJson(s:SessionPath(a:book_id))
 endfunction
 
-function! gut_typist#storage#LastSession() abort
+function! gt#storage#LastSession() abort
   let l:sessions_dir = s:GetBaseDir() . '/sessions'
   if !isdirectory(l:sessions_dir)
     return v:null
@@ -116,7 +116,7 @@ function! s:StatsPath() abort
   return s:GetBaseDir() . '/lifetime_stats.json'
 endfunction
 
-function! gut_typist#storage#LoadLifetimeStats() abort
+function! gt#storage#LoadLifetimeStats() abort
   let l:data = s:ReadJson(s:StatsPath())
   if l:data is v:null
     return {
@@ -129,13 +129,13 @@ function! gut_typist#storage#LoadLifetimeStats() abort
   return l:data
 endfunction
 
-function! gut_typist#storage#SaveLifetimeStats(stats) abort
+function! gt#storage#SaveLifetimeStats(stats) abort
   return s:WriteJson(s:StatsPath(), a:stats)
 endfunction
 
 " List cached books
 
-function! gut_typist#storage#ListCachedBooks() abort
+function! gt#storage#ListCachedBooks() abort
   let l:books_dir = s:GetBaseDir() . '/books'
   if !isdirectory(l:books_dir)
     return []
@@ -144,7 +144,7 @@ function! gut_typist#storage#ListCachedBooks() abort
   let l:books = []
   for l:dir in l:dirs
     let l:id = fnamemodify(l:dir, ':t')
-    let l:meta = gut_typist#storage#LoadBookMetadata(l:id)
+    let l:meta = gt#storage#LoadBookMetadata(l:id)
     if l:meta isnot v:null
       let l:meta.id = l:id
       call add(l:books, l:meta)

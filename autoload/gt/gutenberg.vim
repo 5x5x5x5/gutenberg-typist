@@ -25,10 +25,10 @@ function! s:HttpGet(url, Callback) abort
   endif
 endfunction
 
-function! gut_typist#gutenberg#Search(query, Callback) abort
-  let l:cfg = gut_typist#config#Get()
+function! gt#gutenberg#Search(query, Callback) abort
+  let l:cfg = gt#config#Get()
   let l:params = [
-        \ 'search=' . gut_typist#util#UriEncode(a:query),
+        \ 'search=' . gt#util#UriEncode(a:query),
         \ 'languages=en',
         \ 'mime_type=text%2Fplain',
         \]
@@ -90,15 +90,15 @@ function! s:StripGutenbergHeaderFooter(text) abort
   return l:text
 endfunction
 
-function! gut_typist#gutenberg#Download(book_id, Callback) abort
+function! gt#gutenberg#Download(book_id, Callback) abort
   " Check cache first
-  let l:cached = gut_typist#storage#LoadBookText(a:book_id)
+  let l:cached = gt#storage#LoadBookText(a:book_id)
   if l:cached isnot v:null
     call a:Callback(l:cached, v:null)
     return
   endif
 
-  let l:cfg = gut_typist#config#Get()
+  let l:cfg = gt#config#Get()
   let l:url = printf(l:cfg.gutenberg.book_url, a:book_id, a:book_id)
 
   call s:HttpGet(l:url, function('s:OnDownloadResult', [a:book_id, a:Callback]))
@@ -120,18 +120,18 @@ function! s:OnDownloadResult(book_id, Callback, body, err) abort
   let l:cleaned = substitute(l:cleaned, "\r", "\n", 'g')
 
   " Cache locally
-  call gut_typist#storage#SaveBookText(a:book_id, l:cleaned)
+  call gt#storage#SaveBookText(a:book_id, l:cleaned)
 
   call a:Callback(l:cleaned, v:null)
 endfunction
 
-function! gut_typist#gutenberg#DownloadWithMetadata(book_id, metadata, Callback) abort
+function! gt#gutenberg#DownloadWithMetadata(book_id, metadata, Callback) abort
   if a:metadata isnot v:null
-    call gut_typist#storage#SaveBookMetadata(a:book_id, a:metadata)
+    call gt#storage#SaveBookMetadata(a:book_id, a:metadata)
   endif
-  call gut_typist#gutenberg#Download(a:book_id, a:Callback)
+  call gt#gutenberg#Download(a:book_id, a:Callback)
 endfunction
 
-function! gut_typist#gutenberg#ListCached() abort
-  return gut_typist#storage#ListCachedBooks()
+function! gt#gutenberg#ListCached() abort
+  return gt#storage#ListCachedBooks()
 endfunction

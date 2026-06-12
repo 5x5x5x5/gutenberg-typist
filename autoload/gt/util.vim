@@ -1,13 +1,13 @@
-function! gut_typist#util#SplitLines(str) abort
+function! gt#util#SplitLines(str) abort
   return split(a:str, "\n", 1)
 endfunction
 
-function! gut_typist#util#FlattenLines(lines) abort
+function! gt#util#FlattenLines(lines) abort
   return join(a:lines, "\n")
 endfunction
 
 " Convert linear character offset to [line, col] (both 0-indexed)
-function! gut_typist#util#OffsetToPos(lines, offset) abort
+function! gt#util#OffsetToPos(lines, offset) abort
   let l:remaining = a:offset
   let l:i = 0
   for l:line in a:lines
@@ -26,9 +26,9 @@ function! gut_typist#util#OffsetToPos(lines, offset) abort
   return [l:last - 1, strlen(a:lines[l:last - 1])]
 endfunction
 
-function! gut_typist#util#WrapText(text, ...) abort
+function! gt#util#WrapText(text, ...) abort
   let l:width = get(a:, 1, 80)
-  let l:lines = gut_typist#util#SplitLines(a:text)
+  let l:lines = gt#util#SplitLines(a:text)
   let l:result = []
   for l:line in l:lines
     if strlen(l:line) == 0
@@ -59,7 +59,7 @@ function! gut_typist#util#WrapText(text, ...) abort
 endfunction
 
 " Debounce: returns a dict with .call(...) and .close() methods
-function! gut_typist#util#Debounce(Fn, delay_ms) abort
+function! gt#util#Debounce(Fn, delay_ms) abort
   let l:state = {'timer': -1, 'Fn': a:Fn, 'delay': a:delay_ms}
 
   function! l:state.call(...) abort
@@ -80,7 +80,7 @@ function! gut_typist#util#Debounce(Fn, delay_ms) abort
   return l:state
 endfunction
 
-function! gut_typist#util#UriEncode(str) abort
+function! gt#util#UriEncode(str) abort
   return substitute(a:str, '[^A-Za-z0-9_.~-]',
         \ '\=printf("%%%02X", char2nr(submatch(0)))', 'g')
 endfunction

@@ -1,10 +1,10 @@
-function! gut_typist#Setup(opts) abort
-  call gut_typist#config#Apply(a:opts)
+function! gt#Setup(opts) abort
+  call gt#config#Apply(a:opts)
 endfunction
 
-function! gut_typist#Command(...) abort
+function! gt#Command(...) abort
   if a:0 < 1
-    echohl WarningMsg | echomsg 'GutTypist: Usage: :GutTypist <search|start|resume|stop|stats|library>' | echohl None
+    echohl WarningMsg | echomsg 'GT: Usage: :GT <search|start|resume|stop|stats|library>' | echohl None
     return
   endif
 
@@ -13,30 +13,30 @@ function! gut_typist#Command(...) abort
   if l:subcmd ==# 'search'
     let l:query = join(a:000[1:], ' ')
     if l:query ==# ''
-      echohl WarningMsg | echomsg 'GutTypist: Usage: :GutTypist search <query>' | echohl None
+      echohl WarningMsg | echomsg 'GT: Usage: :GT search <query>' | echohl None
       return
     endif
     call s:Search(l:query)
   elseif l:subcmd ==# 'start'
     if a:0 < 2
-      echohl WarningMsg | echomsg 'GutTypist: Usage: :GutTypist start <book_id>' | echohl None
+      echohl WarningMsg | echomsg 'GT: Usage: :GT start <book_id>' | echohl None
       return
     endif
     call s:Start(str2nr(a:2))
   elseif l:subcmd ==# 'resume'
     call s:Resume()
   elseif l:subcmd ==# 'stop'
-    call gut_typist#engine#Stop()
+    call gt#engine#Stop()
   elseif l:subcmd ==# 'stats'
     call s:ShowStats()
   elseif l:subcmd ==# 'library'
     call s:Library()
   else
-    echohl ErrorMsg | echomsg 'GutTypist: Unknown command: ' . l:subcmd | echohl None
+    echohl ErrorMsg | echomsg 'GT: Unknown command: ' . l:subcmd | echohl None
   endif
 endfunction
 
-function! gut_typist#Complete(arglead, cmdline, cursorpos) abort
+function! gt#Complete(arglead, cmdline, cursorpos) abort
   let l:subcmds = ['search', 'start', 'resume', 'stop', 'stats', 'library']
   let l:parts = split(a:cmdline, '\s\+')
   if len(l:parts) <= 2
@@ -46,22 +46,22 @@ function! gut_typist#Complete(arglead, cmdline, cursorpos) abort
 endfunction
 
 function! s:Search(query) abort
-  echomsg "GutTypist: Searching for '" . a:query . "'..."
+  echomsg "GT: Searching for '" . a:query . "'..."
 
-  call gut_typist#gutenberg#Search(a:query, function('s:OnSearchResults'))
+  call gt#gutenberg#Search(a:query, function('s:OnSearchResults'))
 endfunction
 
 function! s:OnSearchResults(results, err) abort
   if a:err isnot v:null
-    echohl ErrorMsg | echomsg 'GutTypist: Search failed: ' . a:err | echohl None
+    echohl ErrorMsg | echomsg 'GT: Search failed: ' . a:err | echohl None
     return
   endif
   if a:results is v:null || empty(a:results)
-    echohl WarningMsg | echomsg 'GutTypist: No results found' | echohl None
+    echohl WarningMsg | echomsg 'GT: No results found' | echohl None
     return
   endif
 
-  call gut_typist#ui#OpenPicker('Search Results', a:results,
+  call gt#ui#OpenPicker('Search Results', a:results,
         \ function('s:FormatSearchResult'),
         \ function('s:OnSearchSelect'))
 endfunction
@@ -80,20 +80,20 @@ function! s:OnSearchSelect(item, _idx) abort
 endfunction
 
 function! s:StartWithMetadata(book_id, metadata) abort
-  echomsg 'GutTypist: Loading book ' . a:book_id . '...'
+  echomsg 'GT: Loading book ' . a:book_id . '...'
 
-  call gut_typist#gutenberg#DownloadWithMetadata(a:book_id, a:metadata,
+  call gt#gutenberg#DownloadWithMetadata(a:book_id, a:metadata,
         \ function('s:OnBookDownloaded', [a:book_id]))
 endfunction
 
 function! s:OnBookDownloaded(book_id, text, err) abort
   if a:err isnot v:null
-    echohl ErrorMsg | echomsg 'GutTypist: Download failed: ' . a:err | echohl None
+    echohl ErrorMsg | echomsg 'GT: Download failed: ' . a:err | echohl None
     return
   endif
 
   " Check for existing session
-  let l:session = gut_typist#storage#LoadSession(a:book_id)
+  let l:session = gt#storage#LoadSession(a:book_id)
   let l:offset = 0
   if l:session isnot v:null && has_key(l:session, 'offset') && l:session.offset > 0
     let l:answer = confirm(
@@ -102,11 +102,11 @@ function! s:OnBookDownloaded(book_id, text, err) abort
     if l:answer == 1
       let l:offset = l:session.offset
     elseif l:answer == 3
-      call gut_typist#storage#SaveSession(a:book_id, {'book_id': a:book_id, 'offset': 0})
+      call gt#storage#SaveSession(a:book_id, {'book_id': a:book_id, 'offset': 0})
     endif
   endif
 
-  call gut_typist#engine#Start(a:book_id, a:text, l:offset)
+  call gt#engine#Start(a:book_id, a:text, l:offset)
 endfunction
 
 function! s:Start(book_id) abort
@@ -114,26 +114,26 @@ function! s:Start(book_id) abort
 endfunction
 
 function! s:Resume() abort
-  let l:session = gut_typist#storage#LastSession()
+  let l:session = gt#storage#LastSession()
   if l:session is v:null || !has_key(l:session, 'book_id')
-    echohl WarningMsg | echomsg 'GutTypist: No previous session found' | echohl None
+    echohl WarningMsg | echomsg 'GT: No previous session found' | echohl None
     return
   endif
   call s:StartWithMetadata(l:session.book_id, v:null)
 endfunction
 
 function! s:ShowStats() abort
-  let l:lifetime = gut_typist#storage#LoadLifetimeStats()
+  let l:lifetime = gt#storage#LoadLifetimeStats()
 
-  let l:lines = ['=== GutTypist Stats ===']
+  let l:lines = ['=== GT Stats ===']
 
   " Current session stats
-  if gut_typist#engine#IsActive()
-    let l:st = gut_typist#engine#GetState().stats
+  if gt#engine#IsActive()
+    let l:st = gt#engine#GetState().stats
     call add(l:lines, '')
     call add(l:lines, '-- Current Session --')
-    call add(l:lines, printf('  WPM:      %.0f', gut_typist#stats#Wpm(l:st)))
-    call add(l:lines, printf('  Accuracy: %.1f%%', gut_typist#stats#Accuracy(l:st)))
+    call add(l:lines, printf('  WPM:      %.0f', gt#stats#Wpm(l:st)))
+    call add(l:lines, printf('  Accuracy: %.1f%%', gt#stats#Accuracy(l:st)))
     call add(l:lines, printf('  Chars:    %d typed, %d correct', l:st.total_chars_typed, l:st.correct_chars))
   endif
 
@@ -180,13 +180,13 @@ function! s:ShowStats() abort
 endfunction
 
 function! s:Library() abort
-  let l:books = gut_typist#gutenberg#ListCached()
+  let l:books = gt#gutenberg#ListCached()
   if empty(l:books)
-    echomsg 'GutTypist: No cached books. Use :GutTypist search <query> to find books.'
+    echomsg 'GT: No cached books. Use :GT search <query> to find books.'
     return
   endif
 
-  call gut_typist#ui#OpenPicker('Library', l:books,
+  call gt#ui#OpenPicker('Library', l:books,
         \ function('s:FormatLibraryItem'),
         \ function('s:OnLibrarySelect'))
 endfunction

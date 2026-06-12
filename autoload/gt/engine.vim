@@ -8,45 +8,45 @@ let s:state = {
       \ 'save_timer': v:null,
       \}
 
-function! gut_typist#engine#IsActive() abort
+function! gt#engine#IsActive() abort
   return s:state.active
 endfunction
 
-function! gut_typist#engine#GetState() abort
+function! gt#engine#GetState() abort
   return s:state
 endfunction
 
-function! gut_typist#engine#Start(book_id, source_text, resume_offset) abort
+function! gt#engine#Start(book_id, source_text, resume_offset) abort
   if s:state.active
-    call gut_typist#engine#Stop()
+    call gt#engine#Stop()
   endif
 
-  let l:source_lines = gut_typist#util#SplitLines(a:source_text)
-  let l:flat_source = gut_typist#util#FlattenLines(l:source_lines)
+  let l:source_lines = gt#util#SplitLines(a:source_text)
+  let l:flat_source = gt#util#FlattenLines(l:source_lines)
 
   let s:state = {
         \ 'active': v:true,
         \ 'book_id': a:book_id,
         \ 'source_text': l:flat_source,
         \ 'source_lines': l:source_lines,
-        \ 'stats': gut_typist#stats#New(),
+        \ 'stats': gt#stats#New(),
         \ 'prev_typed_len': 0,
         \ 'save_timer': v:null,
         \}
 
   " Open UI
-  call gut_typist#ui#Open(l:source_lines)
+  call gt#ui#Open(l:source_lines)
 
-  let l:ui = gut_typist#ui#GetState()
+  let l:ui = gt#ui#GetState()
 
   " Apply initial untyped highlights
-  let [l:top, l:bot] = gut_typist#ui#GetVisibleRange()
-  call gut_typist#highlight#Apply(l:ui.source_buf, l:source_lines, 0, {}, l:top, l:bot)
+  let [l:top, l:bot] = gt#ui#GetVisibleRange()
+  call gt#highlight#Apply(l:ui.source_buf, l:source_lines, 0, {}, l:top, l:bot)
 
   " If resuming, pre-fill typed text
   if a:resume_offset > 0
     let l:resume_text = strpart(l:flat_source, 0, a:resume_offset)
-    let l:resume_lines = gut_typist#util#SplitLines(l:resume_text)
+    let l:resume_lines = gt#util#SplitLines(l:resume_text)
     call setbufvar(l:ui.typing_buf, '&modifiable', 1)
     call setbufline(l:ui.typing_buf, 1, l:resume_lines)
     " Move cursor to end
@@ -58,39 +58,39 @@ function! gut_typist#engine#Start(book_id, source_text, resume_offset) abort
   endif
 
   " Register autocmds
-  augroup GutTypistEngine
+  augroup GTEngine
     autocmd!
   augroup END
-  execute 'autocmd GutTypistEngine TextChangedI,TextChanged <buffer=' . l:ui.typing_buf . '> call gut_typist#engine#OnTextChanged()'
-  execute 'autocmd GutTypistEngine BufWinLeave <buffer=' . l:ui.typing_buf . '> call s:OnBufLeave()'
-  execute 'autocmd GutTypistEngine BufWinLeave <buffer=' . l:ui.source_buf . '> call s:OnBufLeave()'
+  execute 'autocmd GTEngine TextChangedI,TextChanged <buffer=' . l:ui.typing_buf . '> call gt#engine#OnTextChanged()'
+  execute 'autocmd GTEngine BufWinLeave <buffer=' . l:ui.typing_buf . '> call s:OnBufLeave()'
+  execute 'autocmd GTEngine BufWinLeave <buffer=' . l:ui.source_buf . '> call s:OnBufLeave()'
 
   " Debounced session save
-  let l:cfg = gut_typist#config#Get()
-  let s:state.save_timer = gut_typist#util#Debounce(function('s:SaveSession'), l:cfg.save_interval_ms)
+  let l:cfg = gt#config#Get()
+  let s:state.save_timer = gt#util#Debounce(function('s:SaveSession'), l:cfg.save_interval_ms)
 
   " Trigger initial display for resume
   if a:resume_offset > 0
-    call timer_start(0, {-> gut_typist#engine#OnTextChanged()})
+    call timer_start(0, {-> gt#engine#OnTextChanged()})
   endif
 endfunction
 
 function! s:OnBufLeave() abort
   if s:state.active
-    call timer_start(0, {-> gut_typist#engine#Stop()})
+    call timer_start(0, {-> gt#engine#Stop()})
   endif
 endfunction
 
-function! gut_typist#engine#OnTextChanged() abort
-  if !s:state.active || !gut_typist#ui#IsOpen()
+function! gt#engine#OnTextChanged() abort
+  if !s:state.active || !gt#ui#IsOpen()
     return
   endif
 
-  let l:ui = gut_typist#ui#GetState()
+  let l:ui = gt#ui#GetState()
 
   " Read all typed text and flatten
   let l:typed_lines = getbufline(l:ui.typing_buf, 1, '$')
-  let l:typed_text = gut_typist#util#FlattenLines(l:typed_lines)
+  let l:typed_text = gt#util#FlattenLines(l:typed_lines)
   let l:typed_len = strlen(l:typed_text)
 
   let l:source = s:state.source_text
@@ -112,26 +112,26 @@ function! gut_typist#engine#OnTextChanged() abort
   endwhile
 
   " Update stats
-  call gut_typist#stats#UpdateFromComparison(s:state.stats, l:typed_len, l:correct_count, s:state.prev_typed_len)
+  call gt#stats#UpdateFromComparison(s:state.stats, l:typed_len, l:correct_count, s:state.prev_typed_len)
   let s:state.prev_typed_len = l:typed_len
 
   " Sync source scroll first so highlights apply to the post-scroll
   " visible range (avoids a one-frame unhighlighted blip on scroll).
-  let l:pos = gut_typist#util#OffsetToPos(s:state.source_lines, min([l:typed_len, l:source_len - 1]))
-  call gut_typist#ui#SyncSourceScroll(l:pos[0])
+  let l:pos = gt#util#OffsetToPos(s:state.source_lines, min([l:typed_len, l:source_len - 1]))
+  call gt#ui#SyncSourceScroll(l:pos[0])
 
   " Apply highlights on visible range of source buffer
-  let [l:top, l:bot] = gut_typist#ui#GetVisibleRange()
-  call gut_typist#highlight#Apply(l:ui.source_buf, s:state.source_lines, l:typed_len, l:matches, l:top, l:bot)
+  let [l:top, l:bot] = gt#ui#GetVisibleRange()
+  call gt#highlight#Apply(l:ui.source_buf, s:state.source_lines, l:typed_len, l:matches, l:top, l:bot)
 
   " Calculate and display stats
-  let l:wpm = gut_typist#stats#Wpm(s:state.stats)
-  let l:accuracy = gut_typist#stats#Accuracy(s:state.stats)
+  let l:wpm = gt#stats#Wpm(s:state.stats)
+  let l:accuracy = gt#stats#Accuracy(s:state.stats)
   let l:progress = 0.0
   if l:source_len > 0
     let l:progress = (l:typed_len * 100.0) / l:source_len
   endif
-  call gut_typist#ui#UpdateStatsDisplay(l:wpm, l:accuracy, l:progress)
+  call gt#ui#UpdateStatsDisplay(l:wpm, l:accuracy, l:progress)
 
   " Trigger debounced save
   if s:state.save_timer isnot v:null
@@ -143,14 +143,14 @@ function! s:SaveSession() abort
   if s:state.book_id is v:null
     return
   endif
-  let l:ui = gut_typist#ui#GetState()
+  let l:ui = gt#ui#GetState()
   let l:typed_lines = []
-  if gut_typist#ui#IsOpen()
+  if gt#ui#IsOpen()
     let l:typed_lines = getbufline(l:ui.typing_buf, 1, '$')
   endif
-  let l:typed_text = gut_typist#util#FlattenLines(l:typed_lines)
+  let l:typed_text = gt#util#FlattenLines(l:typed_lines)
 
-  call gut_typist#storage#SaveSession(s:state.book_id, {
+  call gt#storage#SaveSession(s:state.book_id, {
         \ 'book_id': s:state.book_id,
         \ 'offset': strlen(l:typed_text),
         \ 'total_chars_typed': s:state.stats.total_chars_typed,
@@ -158,7 +158,7 @@ function! s:SaveSession() abort
         \})
 endfunction
 
-function! gut_typist#engine#Stop() abort
+function! gt#engine#Stop() abort
   if !s:state.active
     return
   endif
@@ -167,7 +167,7 @@ function! gut_typist#engine#Stop() abort
   call s:SaveSession()
 
   " Update lifetime stats
-  let l:lifetime = gut_typist#storage#LoadLifetimeStats()
+  let l:lifetime = gt#storage#LoadLifetimeStats()
   let l:lifetime.total_chars = l:lifetime.total_chars + s:state.stats.total_chars_typed
   let l:lifetime.correct_chars = l:lifetime.correct_chars + s:state.stats.correct_chars
   if s:state.stats.start_time isnot v:null
@@ -175,10 +175,10 @@ function! gut_typist#engine#Stop() abort
     let l:lifetime.total_time_seconds = l:lifetime.total_time_seconds + l:elapsed
   endif
   let l:lifetime.sessions_count = l:lifetime.sessions_count + 1
-  call gut_typist#storage#SaveLifetimeStats(l:lifetime)
+  call gt#storage#SaveLifetimeStats(l:lifetime)
 
   " Clear autocmds
-  augroup GutTypistEngine
+  augroup GTEngine
     autocmd!
   augroup END
 
@@ -188,13 +188,13 @@ function! gut_typist#engine#Stop() abort
   endif
 
   " Clear highlights
-  let l:ui = gut_typist#ui#GetState()
+  let l:ui = gt#ui#GetState()
   if l:ui.source_buf != -1 && bufexists(l:ui.source_buf)
-    call gut_typist#highlight#Clear(l:ui.source_buf)
+    call gt#highlight#Clear(l:ui.source_buf)
   endif
 
   " Close UI
-  call gut_typist#ui#Close()
+  call gt#ui#Close()
 
   let s:state = {
         \ 'active': v:false,
@@ -206,5 +206,5 @@ function! gut_typist#engine#Stop() abort
         \ 'save_timer': v:null,
         \}
 
-  echomsg 'GutTypist: Session saved'
+  echomsg 'GT: Session saved'
 endfunction

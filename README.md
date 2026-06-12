@@ -24,7 +24,7 @@ git clone https://github.com/5x5x5x5/gutenberg-typist \
 Restart Vim, then try it:
 
 ```vim
-:GutTypist search pride prejudice
+:GT search pride prejudice
 ```
 
 ### vim-plug
@@ -44,26 +44,26 @@ set rtp+=~/code/gutenberg-typist
 ```
 
 No `Setup()` call is needed — the plugin loads itself. Only call
-`gut_typist#Setup({...})` if you want to override defaults (see Configuration).
+`gt#Setup({...})` if you want to override defaults (see Configuration).
 
 ## Usage
 
 | Command | Description |
 |---|---|
-| `:GutTypist search <query>` | Search Project Gutenberg and pick a book |
-| `:GutTypist start <book_id>` | Start typing a book by its Gutenberg ID |
-| `:GutTypist resume` | Resume the most recent session |
-| `:GutTypist stop` | Save progress and close |
-| `:GutTypist stats` | Show session and lifetime statistics |
-| `:GutTypist library` | Browse previously downloaded books |
+| `:GT search <query>` | Search Project Gutenberg and pick a book |
+| `:GT start <book_id>` | Start typing a book by its Gutenberg ID |
+| `:GT resume` | Resume the most recent session |
+| `:GT stop` | Save progress and close |
+| `:GT stats` | Show session and lifetime statistics |
+| `:GT library` | Browse previously downloaded books |
 
 ### Quick start
 
 ```vim
-:GutTypist search pride prejudice
+:GT search pride prejudice
 ```
 
-Select a book from the picker, and start typing. Characters in the source pane turn green when correct, red when wrong. Press `:GutTypist stop` to save and quit, `:GutTypist resume` to continue later.
+Select a book from the picker, and start typing. Characters in the source pane turn green when correct, red when wrong. Press `:GT stop` to save and quit, `:GT resume` to continue later.
 
 ## Highlights
 
@@ -71,17 +71,17 @@ These highlight groups are defined with `highlight default` so you can override 
 
 | Group | Default | Purpose |
 |---|---|---|
-| `GutTypistCorrect` | green, bold | Correctly typed character |
-| `GutTypistWrong` | red on dark bg, bold | Mistyped character |
-| `GutTypistUntyped` | gray | Not yet reached |
-| `GutTypistCursor` | inverse | Next character to type |
+| `GTCorrect` | green, bold | Correctly typed character |
+| `GTWrong` | red on dark bg, bold | Mistyped character |
+| `GTUntyped` | gray | Not yet reached |
+| `GTCursor` | inverse | Next character to type |
 
 ## Configuration
 
 All options are optional. Defaults shown below:
 
 ```vim
-call gut_typist#Setup({
+call gt#Setup({
       \ 'split_ratio': 0.5,
       \ 'wrap_width': 80,
       \ 'save_interval_ms': 5000,

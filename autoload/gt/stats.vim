@@ -1,4 +1,4 @@
-function! gut_typist#stats#New() abort
+function! gt#stats#New() abort
   return {
         \ 'start_time': v:null,
         \ 'total_chars_typed': 0,
@@ -8,7 +8,7 @@ function! gut_typist#stats#New() abort
         \}
 endfunction
 
-function! gut_typist#stats#UpdateFromComparison(state, typed_len, correct_count, prev_typed_len) abort
+function! gt#stats#UpdateFromComparison(state, typed_len, correct_count, prev_typed_len) abort
   let l:now = reltimefloat(reltime())
 
   if a:state.start_time is v:null
@@ -28,13 +28,13 @@ function! gut_typist#stats#UpdateFromComparison(state, typed_len, correct_count,
   call add(a:state.samples, {'time': l:now, 'typed': a:typed_len})
 endfunction
 
-function! gut_typist#stats#Wpm(state) abort
+function! gt#stats#Wpm(state) abort
   if a:state.start_time is v:null || a:state.sample_index < 2
     return 0.0
   endif
 
   let l:now = reltimefloat(reltime())
-  let l:cfg = gut_typist#config#Get()
+  let l:cfg = gt#config#Get()
   let l:window = l:cfg.wpm_window_seconds
   let l:cutoff = l:now - l:window
 
@@ -69,7 +69,7 @@ function! gut_typist#stats#Wpm(state) abort
   return 0.0
 endfunction
 
-function! gut_typist#stats#Accuracy(state) abort
+function! gt#stats#Accuracy(state) abort
   if a:state.total_chars_typed == 0
     return 100.0
   endif

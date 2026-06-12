@@ -6,17 +6,17 @@ let s:state = {
       \ 'typing_win': -1,
       \}
 
-function! gut_typist#ui#GetState() abort
+function! gt#ui#GetState() abort
   return s:state
 endfunction
 
-function! gut_typist#ui#IsOpen() abort
+function! gt#ui#IsOpen() abort
   return s:state.tab != -1
         \ && s:state.typing_win != -1
         \ && win_id2win(s:state.typing_win) > 0
 endfunction
 
-function! gut_typist#ui#Open(source_lines) abort
+function! gt#ui#Open(source_lines) abort
   " Open a new tab
   tabnew
   let s:state.tab = tabpagenr()
@@ -26,7 +26,7 @@ function! gut_typist#ui#Open(source_lines) abort
   call setbufvar(s:state.source_buf, '&buftype', 'nofile')
   call setbufvar(s:state.source_buf, '&bufhidden', 'wipe')
   call setbufvar(s:state.source_buf, '&swapfile', 0)
-  call setbufvar(s:state.source_buf, '&filetype', 'gut-typist-source')
+  call setbufvar(s:state.source_buf, '&filetype', 'gt-source')
   call setline(1, a:source_lines)
   call setbufvar(s:state.source_buf, '&modifiable', 0)
 
@@ -34,7 +34,7 @@ function! gut_typist#ui#Open(source_lines) abort
 
   " Calculate split width
   let l:total_width = winwidth(0)
-  let l:cfg = gut_typist#config#Get()
+  let l:cfg = gt#config#Get()
   let l:source_width = float2nr(l:total_width * l:cfg.split_ratio)
 
   " Vertical split for typing pane on right
@@ -44,7 +44,7 @@ function! gut_typist#ui#Open(source_lines) abort
   call setbufvar(s:state.typing_buf, '&buftype', 'nofile')
   call setbufvar(s:state.typing_buf, '&bufhidden', 'wipe')
   call setbufvar(s:state.typing_buf, '&swapfile', 0)
-  call setbufvar(s:state.typing_buf, '&filetype', 'gut-typist-typing')
+  call setbufvar(s:state.typing_buf, '&filetype', 'gt-typing')
 
   " Set source pane width
   call win_execute(s:state.source_win, 'vertical resize ' . l:source_width)
@@ -58,13 +58,13 @@ function! gut_typist#ui#Open(source_lines) abort
   call win_gotoid(s:state.typing_win)
 
   " Autocmd to redirect focus back to typing pane
-  augroup GutTypistUI
+  augroup GTUI
     autocmd!
     autocmd WinEnter * call s:OnWinEnter()
   augroup END
 
   " Initial stats display
-  call gut_typist#ui#UpdateStatsDisplay(0.0, 100.0, 0.0)
+  call gt#ui#UpdateStatsDisplay(0.0, 100.0, 0.0)
 endfunction
 
 function! s:ConfigureWin(winid) abort
@@ -79,9 +79,9 @@ function! s:ConfigureWin(winid) abort
 endfunction
 
 function! s:OnWinEnter() abort
-  if !gut_typist#ui#IsOpen()
+  if !gt#ui#IsOpen()
     " Clean up autocmd
-    augroup GutTypistUI
+    augroup GTUI
       autocmd!
     augroup END
     return
@@ -92,7 +92,7 @@ function! s:OnWinEnter() abort
   endif
 endfunction
 
-function! gut_typist#ui#UpdateStatsDisplay(wpm, accuracy, progress) abort
+function! gt#ui#UpdateStatsDisplay(wpm, accuracy, progress) abort
   if s:state.typing_win == -1 || win_id2win(s:state.typing_win) == 0
     return
   endif
@@ -103,7 +103,7 @@ function! gut_typist#ui#UpdateStatsDisplay(wpm, accuracy, progress) abort
   call setwinvar(s:state.typing_win, '&statusline', l:bar)
 endfunction
 
-function! gut_typist#ui#SyncSourceScroll(line_0indexed) abort
+function! gt#ui#SyncSourceScroll(line_0indexed) abort
   if s:state.source_win == -1 || win_id2win(s:state.source_win) == 0
     return
   endif
@@ -131,7 +131,7 @@ function! gut_typist#ui#SyncSourceScroll(line_0indexed) abort
   endif
 endfunction
 
-function! gut_typist#ui#GetVisibleRange() abort
+function! gt#ui#GetVisibleRange() abort
   if s:state.source_win == -1 || win_id2win(s:state.source_win) == 0
     return [0, 0]
   endif
@@ -146,9 +146,9 @@ function! gut_typist#ui#GetVisibleRange() abort
   return [l:top, l:bot]
 endfunction
 
-function! gut_typist#ui#Close() abort
+function! gt#ui#Close() abort
   " Remove autocmds
-  augroup GutTypistUI
+  augroup GTUI
     autocmd!
   augroup END
 
@@ -180,7 +180,7 @@ endfunction
 
 " Popup picker for search results / library
 
-function! gut_typist#ui#OpenPicker(title, items, FormatFn, OnSelectFn) abort
+function! gt#ui#OpenPicker(title, items, FormatFn, OnSelectFn) abort
   let l:lines = []
   let l:i = 1
   for l:item in a:items

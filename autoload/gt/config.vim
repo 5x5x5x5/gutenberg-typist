@@ -6,10 +6,10 @@ let s:defaults = {
       \   'book_url': 'https://www.gutenberg.org/cache/epub/%d/pg%d.txt',
       \ },
       \ 'highlights': {
-      \   'correct': 'GutTypistCorrect',
-      \   'wrong': 'GutTypistWrong',
-      \   'untyped': 'GutTypistUntyped',
-      \   'cursor': 'GutTypistCursor',
+      \   'correct': 'GTCorrect',
+      \   'wrong': 'GTWrong',
+      \   'untyped': 'GTUntyped',
+      \   'cursor': 'GTCursor',
       \ },
       \ 'paragraph_mode': v:false,
       \ 'save_interval_ms': 5000,
@@ -18,11 +18,11 @@ let s:defaults = {
 
 let s:values = deepcopy(s:defaults)
 
-function! gut_typist#config#Apply(opts) abort
+function! gt#config#Apply(opts) abort
   let s:values = s:DeepExtend(deepcopy(s:defaults), a:opts)
 endfunction
 
-function! gut_typist#config#Get() abort
+function! gt#config#Get() abort
   return s:values
 endfunction
 

@@ -5,17 +5,17 @@ function! s:EnsureTypes() abort
     return
   endif
   let s:initialized = v:true
-  for l:name in ['GutTypistCorrect', 'GutTypistWrong', 'GutTypistUntyped', 'GutTypistCursor']
+  for l:name in ['GTCorrect', 'GTWrong', 'GTUntyped', 'GTCursor']
     if empty(prop_type_get(l:name))
       call prop_type_add(l:name, {'highlight': l:name, 'priority': 100})
     endif
   endfor
 endfunction
 
-function! gut_typist#highlight#Apply(source_buf, source_lines, typed_len, matches, visible_top, visible_bot) abort
+function! gt#highlight#Apply(source_buf, source_lines, typed_len, matches, visible_top, visible_bot) abort
   call s:EnsureTypes()
 
-  let l:cfg = gut_typist#config#Get()
+  let l:cfg = gt#config#Get()
   let l:hl = l:cfg.highlights
 
   " Clear existing props in buffer
@@ -110,9 +110,9 @@ function! gut_typist#highlight#Apply(source_buf, source_lines, typed_len, matche
   endif
 endfunction
 
-function! gut_typist#highlight#Clear(source_buf) abort
+function! gt#highlight#Clear(source_buf) abort
   call s:EnsureTypes()
-  for l:name in ['GutTypistCorrect', 'GutTypistWrong', 'GutTypistUntyped', 'GutTypistCursor']
+  for l:name in ['GTCorrect', 'GTWrong', 'GTUntyped', 'GTCursor']
     call prop_remove({'type': l:name, 'bufnr': a:source_buf, 'all': v:true})
   endfor
 endfunction
