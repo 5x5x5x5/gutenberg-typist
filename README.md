@@ -132,6 +132,10 @@ existing machine starts a fresh record, and the old history stays under
 the previous name (totals remain correct, shown as an extra machine in
 `:GT stats`).
 
+Want to compare with other typists? Export bundles can be published to
+the community [leaderboard](https://5x5x5x5.github.io/gutenberg-typist-stats/)
+([how to join](https://github.com/5x5x5x5/gutenberg-typist-stats#join-the-board)).
+
 ## License
 
 MIT
