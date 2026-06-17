@@ -1,6 +1,5 @@
 let s:defaults = {
       \ 'split_ratio': 0.5,
-      \ 'wrap_width': 80,
       \ 'gutenberg': {
       \   'search_url': 'https://gutendex.com/books',
       \   'book_url': 'https://www.gutenberg.org/cache/epub/%d/pg%d.txt',
@@ -11,7 +10,6 @@ let s:defaults = {
       \   'untyped': 'GTUntyped',
       \   'cursor': 'GTCursor',
       \ },
-      \ 'paragraph_mode': v:false,
       \ 'save_interval_ms': 5000,
       \ 'wpm_window_seconds': 10,
       \}

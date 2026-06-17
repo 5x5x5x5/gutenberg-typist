@@ -3,11 +3,6 @@ function! gt#Setup(opts) abort
 endfunction
 
 function! gt#Command(...) abort
-  if a:0 < 1
-    echohl WarningMsg | echomsg 'GT: Usage: :GT <search|start|resume|stop|stats|library|export|import>' | echohl None
-    return
-  endif
-
   let l:subcmd = a:1
 
   if l:subcmd ==# 'search'

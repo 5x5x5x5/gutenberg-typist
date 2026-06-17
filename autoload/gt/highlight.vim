@@ -53,7 +53,10 @@ function! gt#highlight#Apply(source_buf, source_lines, typed_len, matches, visib
     let l:line_offset = l:offset
 
     let l:col = 0
-    while l:col < strlen(l:line)
+    " l:col walks byte offsets (text properties are byte-addressed); \zs
+    " splits on character boundaries so strlen gives each char's byte length.
+    for l:ch in split(l:line, '\zs')
+      let l:char_len = strlen(l:ch)
       let l:char_pos = l:line_offset + l:col + 1  " 1-indexed into matches
 
       if l:char_pos == a:typed_len + 1
@@ -66,17 +69,6 @@ function! gt#highlight#Apply(source_buf, source_lines, typed_len, matches, visib
         endif
       else
         let l:hl_group = l:hl.untyped
-      endif
-
-      " Calculate byte length of UTF-8 character
-      let l:byte = char2nr(l:line[l:col])
-      let l:char_len = 1
-      if l:byte >= 0xF0
-        let l:char_len = 4
-      elseif l:byte >= 0xE0
-        let l:char_len = 3
-      elseif l:byte >= 0xC0
-        let l:char_len = 2
       endif
 
       " prop_add uses 1-based line, 1-based column
@@ -94,7 +86,7 @@ function! gt#highlight#Apply(source_buf, source_lines, typed_len, matches, visib
       endif
 
       let l:col += l:char_len
-    endwhile
+    endfor
 
     let l:offset += strlen(l:line) + 1  " +1 for \n
     let l:line_idx += 1

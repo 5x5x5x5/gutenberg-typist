@@ -4,7 +4,6 @@ function! gt#stats#New() abort
         \ 'total_chars_typed': 0,
         \ 'correct_chars': 0,
         \ 'samples': [],
-        \ 'sample_index': 0,
         \}
 endfunction
 
@@ -24,12 +23,11 @@ function! gt#stats#UpdateFromComparison(state, typed_len, correct_count, prev_ty
   let a:state.correct_chars = a:correct_count
 
   " Add rolling sample
-  let a:state.sample_index += 1
   call add(a:state.samples, {'time': l:now, 'typed': a:typed_len})
 endfunction
 
 function! gt#stats#Wpm(state) abort
-  if a:state.start_time is v:null || a:state.sample_index < 2
+  if a:state.start_time is v:null || len(a:state.samples) < 2
     return 0.0
   endif
 

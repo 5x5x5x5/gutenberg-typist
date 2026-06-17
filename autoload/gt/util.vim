@@ -26,38 +26,6 @@ function! gt#util#OffsetToPos(lines, offset) abort
   return [l:last - 1, strlen(a:lines[l:last - 1])]
 endfunction
 
-function! gt#util#WrapText(text, ...) abort
-  let l:width = get(a:, 1, 80)
-  let l:lines = gt#util#SplitLines(a:text)
-  let l:result = []
-  for l:line in l:lines
-    if strlen(l:line) == 0
-      call add(l:result, '')
-    elseif strlen(l:line) <= l:width
-      call add(l:result, l:line)
-    else
-      let l:pos = 0
-      while l:pos < strlen(l:line)
-        if l:pos + l:width >= strlen(l:line)
-          call add(l:result, strpart(l:line, l:pos))
-          break
-        endif
-        let l:chunk = strpart(l:line, l:pos, l:width)
-        " Find last space within chunk
-        let l:wrap_at = strridx(l:chunk, ' ')
-        if l:wrap_at > 0
-          call add(l:result, strpart(l:line, l:pos, l:wrap_at))
-          let l:pos += l:wrap_at + 1
-        else
-          call add(l:result, l:chunk)
-          let l:pos += l:width
-        endif
-      endwhile
-    endif
-  endfor
-  return l:result
-endfunction
-
 " Debounce: returns a dict with .call(...) and .close() methods
 function! gt#util#Debounce(Fn, delay_ms) abort
   let l:state = {'timer': -1, 'Fn': a:Fn, 'delay': a:delay_ms}
