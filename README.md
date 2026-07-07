@@ -60,7 +60,7 @@ No `Setup()` call is needed — the plugin loads itself. Only call
 |---|---|
 | `:GT search <query>` | Search Project Gutenberg and pick a book |
 | `:GT start <book_id>` | Start typing a book by its Gutenberg ID |
-| `:GT resume` | Resume the most recent session |
+| `:GT resume` | Resume an in-progress book (picker when there are several) |
 | `:GT stop` | Save progress and close |
 | `:GT stats` | Show session and lifetime statistics |
 | `:GT library` | Browse previously downloaded books |
@@ -74,6 +74,10 @@ No `Setup()` call is needed — the plugin loads itself. Only call
 ```
 
 Select a book from the picker, and start typing. Characters in the source pane turn green when correct, red when wrong. Press `:GT stop` to save and quit, `:GT resume` to continue later.
+
+### Special characters
+
+Books keep their original typography — em dashes, curly quotes, accented words like *fiancée*. Type them with Vim digraphs: `CTRL-K` plus two characters in insert mode (`CTRL-K -M` → —). See the [digraphs guide](https://5x5x5x5.github.io/gutenberg-typist/digraphs.html) or `:help gt-digraphs`.
 
 ## Highlights
 

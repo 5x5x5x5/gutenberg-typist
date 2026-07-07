@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Special characters — gutenberg-typist</title>
+<meta name="description" content="How to type the em dashes, curly quotes, and accented letters in Project Gutenberg books using Vim digraphs.">
+<style>
+:root {
+  --bg: #0d1117;
+  --surface: #282a36;
+  --surface-light: #343746;
+  --border: #44475a;
+  --fg: #f8f8f2;
+  --fg-muted: #6272a4;
+  --green: #50fa7b;
+  --purple: #bd93f9;
+  --cyan: #8be9fd;
+  --yellow: #f1fa8c;
+  --pink: #ff79c6;
+  --font-mono: 'SF Mono', 'Cascadia Code', 'Fira Code', 'JetBrains Mono', Consolas, 'Liberation Mono', monospace;
+  --font-sans: -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  font-family: var(--font-sans);
+  background: var(--bg);
+  color: var(--fg);
+  line-height: 1.65;
+  -webkit-font-smoothing: antialiased;
+}
+main { max-width: 760px; margin: 0 auto; padding: 48px 20px 64px; }
+a { color: var(--purple); text-decoration: none; }
+a:hover { text-decoration: underline; }
+.back { font-size: 0.85rem; color: var(--fg-muted); }
+h1 { font-size: clamp(1.6rem, 5vw, 2.2rem); margin: 18px 0 6px; }
+h1 .accent { color: var(--green); }
+.lede { color: var(--fg-muted); margin-bottom: 28px; }
+h2 { font-size: 1.15rem; margin: 36px 0 10px; color: var(--cyan); }
+p { margin: 10px 0; }
+kbd {
+  font-family: var(--font-mono);
+  font-size: 0.85em;
+  background: var(--surface-light);
+  border: 1px solid var(--border);
+  border-bottom-width: 2px;
+  border-radius: 5px;
+  padding: 1px 6px;
+  white-space: nowrap;
+}
+code { font-family: var(--font-mono); color: var(--yellow); font-size: 0.9em; }
+.table-wrap { overflow-x: auto; margin: 14px 0; }
+table {
+  border-collapse: collapse;
+  width: 100%;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  overflow: hidden;
+  font-size: 0.92rem;
+}
+th {
+  text-align: left;
+  color: var(--fg-muted);
+  font-weight: 600;
+  padding: 8px 14px;
+  border-bottom: 1px solid var(--border);
+}
+td { padding: 7px 14px; border-bottom: 1px solid rgba(255,255,255,0.04); }
+tr:last-child td { border-bottom: none; }
+td.ch { font-family: var(--font-mono); font-size: 1.25rem; color: var(--green); width: 1%; }
+td.dig { font-family: var(--font-mono); color: var(--pink); white-space: nowrap; }
+td.name { color: var(--fg); }
+.note {
+  background: var(--surface);
+  border-left: 3px solid var(--purple);
+  border-radius: 0 8px 8px 0;
+  padding: 12px 16px;
+  margin: 18px 0;
+  font-size: 0.92rem;
+}
+</style>
+</head>
+<body>
+<main>
+  <a class="back" href="index.html">&larr; gutenberg-typist</a>
+  <h1>Typing the <span class="accent">untypeable</span></h1>
+  <p class="lede">The classics are older than your keyboard.</p>
+
+  <p>Project Gutenberg texts keep their original typography: em&nbsp;dashes, curly
+  quotes, the accents in <em>fiancée</em> and <em>naïve</em>, ligatures like
+  <em>æther</em>. None of those have keys — but Vim has had an answer since
+  before Unicode was cool: <strong>digraphs</strong>.</p>
+
+  <p>In insert mode, press <kbd>Ctrl-K</kbd> followed by two characters.
+  <kbd>Ctrl-K</kbd><kbd>-</kbd><kbd>M</kbd> types an em dash.
+  <kbd>Ctrl-K</kbd><kbd>e</kbd><kbd>'</kbd> types é. The result matches the
+  book's character exactly, so gutenberg-typist scores it green like any other
+  keystroke.</p>
+
+  <h2>Punctuation</h2>
+  <div class="table-wrap">
+  <table>
+    <tr><th></th><th>name</th><th>digraph</th></tr>
+    <tr><td class="ch">—</td><td class="name">em dash</td><td class="dig">-M</td></tr>
+    <tr><td class="ch">–</td><td class="name">en dash</td><td class="dig">-N</td></tr>
+    <tr><td class="ch">‘</td><td class="name">left single quote</td><td class="dig">'6</td></tr>
+    <tr><td class="ch">’</td><td class="name">right single quote / apostrophe</td><td class="dig">'9</td></tr>
+    <tr><td class="ch">“</td><td class="name">left double quote</td><td class="dig">"6</td></tr>
+    <tr><td class="ch">”</td><td class="name">right double quote</td><td class="dig">"9</td></tr>
+    <tr><td class="ch">…</td><td class="name">ellipsis</td><td class="dig">,.</td></tr>
+    <tr><td class="ch">«</td><td class="name">left guillemet</td><td class="dig">&lt;&lt;</td></tr>
+    <tr><td class="ch">»</td><td class="name">right guillemet</td><td class="dig">&gt;&gt;</td></tr>
+    <tr><td class="ch">¿</td><td class="name">inverted question mark</td><td class="dig">?I</td></tr>
+    <tr><td class="ch">¡</td><td class="name">inverted exclamation</td><td class="dig">!I</td></tr>
+  </table>
+  </div>
+  <p>The quote mnemonics: <code>6</code> opens, <code>9</code> closes — the
+  digits look like the quotes.</p>
+
+  <h2>Accented letters</h2>
+  <p>One pattern covers them all: the letter, then a mark that looks like the
+  accent. Works for any letter, upper or lower case.</p>
+  <div class="table-wrap">
+  <table>
+    <tr><th>mark</th><th>accent</th><th>examples</th></tr>
+    <tr><td class="dig">'</td><td class="name">acute</td><td class="ch">é á — <span style="color:var(--pink)">e' a'</span></td></tr>
+    <tr><td class="dig">!</td><td class="name">grave</td><td class="ch">è à — <span style="color:var(--pink)">e! a!</span></td></tr>
+    <tr><td class="dig">&gt;</td><td class="name">circumflex</td><td class="ch">ê ô î û â — <span style="color:var(--pink)">e&gt; o&gt; i&gt; u&gt; a&gt;</span></td></tr>
+    <tr><td class="dig">:</td><td class="name">diaeresis / umlaut</td><td class="ch">ë ï ö ü — <span style="color:var(--pink)">e: i: o: u:</span></td></tr>
+    <tr><td class="dig">?</td><td class="name">tilde</td><td class="ch">ñ — <span style="color:var(--pink)">n?</span></td></tr>
+    <tr><td class="dig">,</td><td class="name">cedilla</td><td class="ch">ç — <span style="color:var(--pink)">c,</span></td></tr>
+  </table>
+  </div>
+
+  <h2>Ligatures &amp; symbols</h2>
+  <div class="table-wrap">
+  <table>
+    <tr><th></th><th>name</th><th>digraph</th></tr>
+    <tr><td class="ch">æ</td><td class="name">ae ligature (æther, mediæval)</td><td class="dig">ae</td></tr>
+    <tr><td class="ch">Æ</td><td class="name">AE ligature</td><td class="dig">AE</td></tr>
+    <tr><td class="ch">œ</td><td class="name">oe ligature (manœuvre)</td><td class="dig">oe</td></tr>
+    <tr><td class="ch">Œ</td><td class="name">OE ligature</td><td class="dig">OE</td></tr>
+    <tr><td class="ch">£</td><td class="name">pound sterling</td><td class="dig">Pd</td></tr>
+    <tr><td class="ch">°</td><td class="name">degree</td><td class="dig">DG</td></tr>
+    <tr><td class="ch">§</td><td class="name">section</td><td class="dig">SE</td></tr>
+    <tr><td class="ch">†</td><td class="name">dagger</td><td class="dig">/-</td></tr>
+    <tr><td class="ch">‡</td><td class="name">double dagger</td><td class="dig">/=</td></tr>
+    <tr><td class="ch">½</td><td class="name">one half</td><td class="dig">12</td></tr>
+    <tr><td class="ch">¼</td><td class="name">one quarter</td><td class="dig">14</td></tr>
+    <tr><td class="ch">¾</td><td class="name">three quarters</td><td class="dig">34</td></tr>
+  </table>
+  </div>
+
+  <h2>Everything else</h2>
+  <p><code>:digraphs</code> lists every code Vim knows.
+  <code>:help digraphs</code> explains the system. And any character at all can
+  be typed by codepoint: <kbd>Ctrl-V</kbd><kbd>u</kbd> then four hex digits —
+  <kbd>Ctrl-V</kbd><code>u2014</code> is the em dash again.</p>
+
+  <div class="note">
+  Not every book needs this: many Gutenberg transcriptions are plain ASCII,
+  with <code>--</code> for dashes and straight quotes. You'll meet these
+  characters in the books that kept their original typography — which are the
+  best ones to type.
+  </div>
+</main>
+</body>
+</html>

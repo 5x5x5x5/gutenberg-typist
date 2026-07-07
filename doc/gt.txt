@@ -16,6 +16,7 @@ CONTENTS                                                         *gt-contents*
     3. Configuration ................ |gt-config|
     4. Highlights ................... |gt-highlights|
     5. Data & sync .................. |gt-sync|
+    6. Special characters ........... |gt-digraphs|
 
 ==============================================================================
 1. REQUIREMENTS                                              *gt-requirements*
@@ -102,5 +103,20 @@ Cross-machine sync is |:GT-export| on one machine, copy the file, and
 see the typist guild:
 
     https://github.com/5x5x5x5/typist-guild#join-the-board
+
+==============================================================================
+6. SPECIAL CHARACTERS                                            *gt-digraphs*
+
+Books keep their original typography: em dashes, curly quotes, accented
+words. Type them with Vim's built-in |digraphs|: in insert mode press
+CTRL-K and two characters. The most common in Gutenberg texts:
+
+    —  CTRL-K -M        '  CTRL-K '9        é  CTRL-K e'
+    –  CTRL-K -N        "  CTRL-K "6        è  CTRL-K e!
+    …  CTRL-K ,.        "  CTRL-K "9        æ  CTRL-K ae
+
+Accent pattern: letter + ' (acute), ! (grave), > (circumflex),
+: (umlaut), ? (tilde), , (cedilla). List everything with |:digraphs|.
+Full guide: https://5x5x5x5.github.io/gutenberg-typist/digraphs.html
 
 vim:tw=78:ts=8:noet:ft=help:norl:
