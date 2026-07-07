@@ -2,6 +2,8 @@
 
 A Vim plugin for touch typing practice using books from [Project Gutenberg](https://www.gutenberg.org/).
 
+Learned to type with [GNU gtypist](https://www.gnu.org/software/gtypist/)? This is the graduation: no more drills — keep your fingers sharp on the real thing, from *Moby-Dick* to *Ulysses*. Then compare notes at the [typist guild](https://5x5x5x5.github.io/typist-guild/).
+
 Search for any book, and gutenberg-typist opens a split-pane view: the source text on the left with per-character color feedback, and a typing buffer on the right. Real-time WPM, accuracy, and progress are displayed in the statusline. Sessions are saved automatically so you can pick up where you left off.
 
 ## Requirements
@@ -133,8 +135,8 @@ the previous name (totals remain correct, shown as an extra machine in
 `:GT stats`).
 
 Want to compare with other typists? Export bundles can be published to
-the community [leaderboard](https://5x5x5x5.github.io/gutenberg-typist-hub/)
-([how to join](https://github.com/5x5x5x5/gutenberg-typist-hub#join-the-board)).
+the community [leaderboard](https://5x5x5x5.github.io/typist-guild/)
+([how to join](https://github.com/5x5x5x5/typist-guild#join-the-board)).
 
 ## License
 
