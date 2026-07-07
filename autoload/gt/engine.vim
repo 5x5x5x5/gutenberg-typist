@@ -180,6 +180,7 @@ function! gt#engine#Stop() abort
         \ 'correct_chars': s:state.stats.correct_chars,
         \ 'sessions_count': 1,
         \}
+  let l:elapsed = 0.0
   if s:state.stats.start_time isnot v:null
     let l:elapsed = reltimefloat(reltime()) - s:state.stats.start_time
     let l:deltas.total_time_seconds = float2nr(round(l:elapsed))
@@ -189,7 +190,23 @@ function! gt#engine#Stop() abort
             \ (s:state.stats.total_chars_typed / 5.0) / (l:elapsed / 60.0)))
     endif
   endif
+  let l:prev_best = get(gt#storage#LoadLifetimeStats(), 'best_wpm', 0)
   call gt#storage#AddLifetimeDeltas(l:deltas)
+
+  " One-line recap; empty sessions keep the plain message.
+  let l:msg = 'GT: Session saved'
+  if s:state.stats.total_chars_typed > 0 && l:elapsed > 0.0
+    let l:msg = printf('GT: Session saved — %.0f wpm · %.1f%% accuracy · %d chars · %s',
+          \ (s:state.stats.total_chars_typed / 5.0) / (l:elapsed / 60.0),
+          \ gt#stats#Accuracy(s:state.stats),
+          \ s:state.stats.total_chars_typed,
+          \ l:elapsed >= 60.0
+          \   ? float2nr(round(l:elapsed / 60.0)) . ' min'
+          \   : float2nr(round(l:elapsed)) . ' sec')
+    if has_key(l:deltas, 'best_wpm') && l:deltas.best_wpm > l:prev_best
+      let l:msg .= ' · new best WPM!'
+    endif
+  endif
 
   " Clear autocmds
   augroup GTEngine
@@ -221,5 +238,5 @@ function! gt#engine#Stop() abort
         \ 'save_timer': v:null,
         \}
 
-  echomsg 'GT: Session saved'
+  echomsg l:msg
 endfunction

@@ -29,6 +29,12 @@ Restart Vim, then try it:
 :GT search pride prejudice
 ```
 
+For `:help gt`, generate the help tags once:
+
+```vim
+:helptags ALL
+```
+
 ### vim-plug
 
 ```vim
@@ -87,7 +93,6 @@ All options are optional. Defaults shown below:
 ```vim
 call gt#Setup({
       \ 'split_ratio': 0.5,
-      \ 'wrap_width': 80,
       \ 'save_interval_ms': 5000,
       \ 'wpm_window_seconds': 10,
       \})

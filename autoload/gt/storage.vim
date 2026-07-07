@@ -109,6 +109,12 @@ function! gt#storage#LoadBookMetadata(book_id) abort
   return s:ReadJson(s:BookDir(a:book_id) . '/metadata.json')
 endfunction
 
+" Byte size of the cached text, -1 if not cached. Cheap progress-% proxy:
+" session offsets are byte offsets into this same file.
+function! gt#storage#BookTextSize(book_id) abort
+  return getfsize(s:BookDir(a:book_id) . '/text.txt')
+endfunction
+
 " Sessions
 
 function! s:SessionPath(book_id) abort

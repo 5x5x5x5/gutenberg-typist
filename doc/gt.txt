@@ -1,0 +1,106 @@
+*gt.txt*  Touch typing practice on Project Gutenberg books
+
+                                                *gt* *gutenberg-typist*
+
+Type real books, inside Vim. Learned to type with GNU gtypist? This is the
+graduation: no more drills — keep your fingers sharp on the classics, then
+compare notes at the typist guild leaderboard.
+
+    https://5x5x5x5.github.io/typist-guild/
+
+==============================================================================
+CONTENTS                                                         *gt-contents*
+
+    1. Requirements ................. |gt-requirements|
+    2. Commands ..................... |gt-commands|
+    3. Configuration ................ |gt-config|
+    4. Highlights ................... |gt-highlights|
+    5. Data & sync .................. |gt-sync|
+
+==============================================================================
+1. REQUIREMENTS                                              *gt-requirements*
+
+- Vim 8.2 or newer (popups, text properties, jobs)
+- `curl` on $PATH (book search and download)
+
+==============================================================================
+2. COMMANDS                                              *gt-commands* *:GT*
+
+:GT search {query}                                                *:GT-search*
+    Search Project Gutenberg (via gutendex) and pick a book from the
+    results. Selecting a book downloads it (cached locally afterwards)
+    and opens the typing view: source text on the left with
+    per-character feedback, your typing buffer on the right.
+
+:GT start {book_id}                                                *:GT-start*
+    Start typing a book directly by its Gutenberg id.
+
+:GT resume                                                        *:GT-resume*
+    Pick up where you left off. With one in-progress book it resumes
+    immediately; with several it opens a picker showing each book's
+    progress and when you last touched it.
+
+:GT stop                                                            *:GT-stop*
+    End the session. Progress is saved (also happens automatically when
+    you leave the typing buffer) and a one-line recap is shown: session
+    WPM, accuracy, chars, duration.
+
+:GT stats                                                          *:GT-stats*
+    Popup with current-session and lifetime stats. Close with q or
+    <Esc>.
+
+:GT library                                                      *:GT-library*
+    Pick from books already downloaded (works offline).
+
+:GT export [{file}]                                               *:GT-export*
+    Write a portable stats bundle (default ~/gutenberg-typist-export.json).
+    Use it to move stats between machines or submit to the leaderboard.
+
+:GT import {file}                                                 *:GT-import*
+    Merge a bundle exported on another machine. Imports are idempotent:
+    counters merge by field-wise max per machine, so re-importing or
+    importing an old bundle never double-counts.
+
+==============================================================================
+3. CONFIGURATION                                                   *gt-config*
+
+All options are optional. Defaults: >
+
+    call gt#Setup({
+          \ 'split_ratio': 0.5,
+          \ 'save_interval_ms': 5000,
+          \ 'wpm_window_seconds': 10,
+          \})
+<
+                                                             *g:gt_machine_id*
+Stats are recorded per machine, keyed by hostname. Set this to override —
+it also serves as your pseudonym if you share bundles publicly: >
+
+    let g:gt_machine_id = 'laptop'
+<
+==============================================================================
+4. HIGHLIGHTS                                                  *gt-highlights*
+
+Override these groups to match your colorscheme:
+
+    GTCorrect     typed correctly (default: green)
+    GTWrong       typo (default: red)
+    GTUntyped     not yet reached (default: gray)
+    GTCursor      next character to type (default: inverse)
+
+==============================================================================
+5. DATA & SYNC                                                       *gt-sync*
+
+Everything lives under ~/.vim/gutenberg-typist/ : >
+
+    books/{id}/text.txt, metadata.json    cached books
+    sessions/{id}.json                    per-book progress
+    lifetime_stats.json                   per-machine counters
+<
+Cross-machine sync is |:GT-export| on one machine, copy the file, and
+|:GT-import| on the other. To put your stats on the public leaderboard,
+see the typist guild:
+
+    https://github.com/5x5x5x5/typist-guild#join-the-board
+
+vim:tw=78:ts=8:noet:ft=help:norl:

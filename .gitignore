@@ -11,3 +11,4 @@ Thumbs.db
 
 # Plugin data (local cache)
 # The actual book cache lives in ~/.local/share/nvim/gut-typist/
+doc/tags

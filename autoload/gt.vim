@@ -137,12 +137,63 @@ function! s:Start(book_id) abort
 endfunction
 
 function! s:Resume() abort
-  let l:session = gt#storage#LastSession()
-  if l:session is v:null || !has_key(l:session, 'book_id')
+  let l:sessions = gt#storage#ListSessions()
+  call filter(l:sessions, 'type(v:val) == v:t_dict && get(v:val, "offset", 0) > 0')
+  if empty(l:sessions)
     echohl WarningMsg | echomsg 'GT: No previous session found' | echohl None
     return
   endif
-  call s:StartWithMetadata(l:session.book_id, v:null)
+
+  let l:items = []
+  for [l:book_id, l:sess] in items(l:sessions)
+    let l:meta = gt#storage#LoadBookMetadata(l:book_id)
+    if l:meta is v:null
+      let l:meta = {}
+    endif
+    call add(l:items, {
+          \ 'id': str2nr(l:book_id),
+          \ 'title': get(l:meta, 'title', 'Book ' . l:book_id),
+          \ 'author': get(l:meta, 'author', join(get(l:meta, 'authors', []), ', ')),
+          \ 'offset': l:sess.offset,
+          \ 'last_active': get(l:sess, 'last_active', 0),
+          \})
+  endfor
+
+  if len(l:items) == 1
+    call s:StartWithMetadata(l:items[0].id, v:null)
+    return
+  endif
+
+  call sort(l:items, {a, b -> b.last_active - a.last_active})
+  call gt#ui#OpenPicker('Resume', l:items,
+        \ function('s:FormatResumeItem'),
+        \ function('s:OnResumeSelect'))
+endfunction
+
+function! s:FormatResumeItem(item, idx) abort
+  let l:size = gt#storage#BookTextSize(a:item.id)
+  let l:progress = l:size > 0
+        \ ? printf('%.0f%%', (a:item.offset * 100.0) / l:size)
+        \ : a:item.offset . ' chars'
+  return printf('%d. [%d] %s — %s (%s, %s)', a:idx, a:item.id,
+        \ a:item.title, a:item.author, l:progress, s:TimeAgo(a:item.last_active))
+endfunction
+
+function! s:TimeAgo(ts) abort
+  if a:ts <= 0
+    return 'unknown'
+  endif
+  let l:d = localtime() - a:ts
+  if l:d < 3600
+    return max([l:d / 60, 1]) . 'm ago'
+  elseif l:d < 86400
+    return (l:d / 3600) . 'h ago'
+  endif
+  return (l:d / 86400) . 'd ago'
+endfunction
+
+function! s:OnResumeSelect(item, _idx) abort
+  call s:StartWithMetadata(a:item.id, v:null)
 endfunction
 
 function! s:ShowStats() abort

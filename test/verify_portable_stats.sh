@@ -212,6 +212,39 @@ check "resume prefix not counted as typed"      "$T/c16" '"total_chars":0[,}]'
 check "resume produces no fluke best_wpm"       "$T/c16" '"best_wpm":0[,}]'
 check "resumed session still counted"           "$T/c16" '"sessions_count":1[,}]'
 
+# ── 14. Resume picker + session recap ───────────────────────────────────────
+mkdir -p "$T/homeE/.vim/gutenberg-typist/sessions" \
+         "$T/homeE/.vim/gutenberg-typist/books/11" "$T/homeE/.vim/gutenberg-typist/books/22"
+echo '{"id":11,"title":"Alice in Wonderland","author":"Carroll"}' \
+  > "$T/homeE/.vim/gutenberg-typist/books/11/metadata.json"
+echo '{"id":22,"title":"Moby Dick","author":"Melville"}' \
+  > "$T/homeE/.vim/gutenberg-typist/books/22/metadata.json"
+printf 'a%.0s' $(seq 100) > "$T/homeE/.vim/gutenberg-typist/books/11/text.txt"
+printf 'b%.0s' $(seq 200) > "$T/homeE/.vim/gutenberg-typist/books/22/text.txt"
+echo '{"book_id":11,"offset":25,"last_active":1718199000}' \
+  > "$T/homeE/.vim/gutenberg-typist/sessions/11.json"
+echo '{"book_id":22,"offset":100,"last_active":1718299000}' \
+  > "$T/homeE/.vim/gutenberg-typist/sessions/22.json"
+
+run_vim "$T/homeE" machE \
+  "runtime plugin/gt.vim" \
+  "GT resume" \
+  "call writefile(getbufline(winbufnr(popup_list()[0]), 1, '\$'), '$T/c17')"
+check "resume picker lists cached titles"       "$T/c17" 'Alice in Wonderland — Carroll \(25%'
+check "picker shows progress from text size"    "$T/c17" 'Moby Dick — Melville \(50%'
+head -1 "$T/c17" > "$T/c18" 2>/dev/null
+check "picker sorts most-recent first"          "$T/c18" 'Moby Dick'
+
+run_vim "$T/homeE" machE \
+  "runtime plugin/gt.vim" \
+  "redir! > $T/c19" \
+  "call gt#engine#Start(7, repeat('abcdef ', 200), 0)" \
+  "call setbufline(gt#ui#GetState().typing_buf, 1, 'abcdef abcdef')" \
+  "call gt#engine#OnTextChanged()" \
+  "call gt#engine#Stop()" \
+  "redir END"
+check "stop recap reports wpm/accuracy/chars"   "$T/c19" 'Session saved — [0-9]+ wpm · 100.0% accuracy · 13 chars · [0-9]+ sec'
+
 echo
 echo "=== $PASS passed, $FAIL failed (work dir: $T) ==="
 [ "$FAIL" -eq 0 ]
