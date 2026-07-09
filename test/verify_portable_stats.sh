@@ -245,6 +245,31 @@ run_vim "$T/homeE" machE \
   "redir END"
 check "stop recap reports wpm/accuracy/chars"   "$T/c19" 'Session saved — [0-9]+ wpm · 100.0% accuracy · 13 chars · [0-9]+ sec'
 
+# ── 15. :GT publish posts the bundle to the guild ──────────────────────────
+STUB_PORT=$((20000 + RANDOM % 20000))
+python3 test/hub_stub.py "$STUB_PORT" "$T/hub-capture" &
+STUB_PID=$!
+sleep 0.3
+run_vim "$T/homeA" machA \
+  "runtime plugin/gt.vim" \
+  "let g:gt_hub_url='http://127.0.0.1:$STUB_PORT'" \
+  "let g:gt_hub_token='gt_testtoken'" \
+  "redir! > $T/c20" \
+  "GT publish" \
+  "let i=0 | while i < 50 && !exists('g:gt_hub_last') | sleep 100m | let i+=1 | endwhile" \
+  "redir END"
+kill "$STUB_PID" 2>/dev/null
+check "publish sends the bearer token"          "$T/hub-capture" '^AUTH:Bearer gt_testtoken$'
+check "publish posts a v1 bundle"               "$T/hub-capture" '"format_version":1'
+check "publish body carries machine counters"   "$T/hub-capture" '"machA"'
+check "publish echoes rank from the response"   "$T/c20" 'Published — #1 of 3 \(best 72 wpm\)'
+run_vim "$T/homeA" machA \
+  "runtime plugin/gt.vim" \
+  "redir! > $T/c21" \
+  "GT publish" \
+  "redir END"
+check "publish without token points at account" "$T/c21" 'Set g:gt_hub_token first'
+
 echo
 echo "=== $PASS passed, $FAIL failed (work dir: $T) ==="
 [ "$FAIL" -eq 0 ]

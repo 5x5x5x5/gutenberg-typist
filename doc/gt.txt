@@ -62,6 +62,13 @@ CONTENTS                                                         *gt-contents*
     counters merge by field-wise max per machine, so re-importing or
     importing an old bundle never double-counts.
 
+:GT publish                                                      *:GT-publish*
+    Put your stats on the typist guild board: exports a bundle and
+    uploads it (async, needs curl). Publishing is idempotent like
+    |:GT-import| — the guild merges by field-wise max, so republishing
+    never double-counts. Requires |g:gt_hub_token|. The response is
+    kept in g:gt_hub_last for inspection.
+
 ==============================================================================
 3. CONFIGURATION                                                   *gt-config*
 
@@ -75,10 +82,19 @@ All options are optional. Defaults: >
 <
                                                              *g:gt_machine_id*
 Stats are recorded per machine, keyed by hostname. Set this to override —
-it also serves as your pseudonym if you share bundles publicly: >
+machine ids are shown on your guild board profile: >
 
     let g:gt_machine_id = 'laptop'
 <
+                                                *g:gt_hub_token* *g:gt_hub_url*
+|:GT-publish| needs a token: sign in with GitHub on the guild board's
+/account page, generate one, and set it (the account page prints these
+exact lines): >
+
+    let g:gt_hub_token = 'gt_...'
+<
+g:gt_hub_url overrides the guild instance for self-hosted boards.
+
 ==============================================================================
 4. HIGHLIGHTS                                                  *gt-highlights*
 
@@ -99,10 +115,10 @@ Everything lives under ~/.vim/gutenberg-typist/ : >
     lifetime_stats.json                   per-machine counters
 <
 Cross-machine sync is |:GT-export| on one machine, copy the file, and
-|:GT-import| on the other. To put your stats on the public leaderboard,
-see the typist guild:
+|:GT-import| on the other. The public leaderboard is one command —
+|:GT-publish| — or upload an export on the guild's /account page:
 
-    https://github.com/5x5x5x5/typist-guild#join-the-board
+    https://5x5x5x5.github.io/typist-guild/
 
 ==============================================================================
 6. SPECIAL CHARACTERS                                            *gt-digraphs*

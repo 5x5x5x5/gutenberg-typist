@@ -66,6 +66,7 @@ No `Setup()` call is needed — the plugin loads itself. Only call
 | `:GT library` | Browse previously downloaded books |
 | `:GT export [file]` | Export stats and book progress to a portable bundle |
 | `:GT import <file>` | Merge a bundle exported on another machine |
+| `:GT publish` | Upload your stats to the typist guild leaderboard |
 
 ### Quick start
 
@@ -143,9 +144,26 @@ existing machine starts a fresh record, and the old history stays under
 the previous name (totals remain correct, shown as an extra machine in
 `:GT stats`).
 
-Want to compare with other typists? Export bundles can be published to
-the community [leaderboard](https://5x5x5x5.github.io/typist-guild/)
-([how to join](https://github.com/5x5x5x5/typist-guild#join-the-board)).
+## The leaderboard
+
+Compare with other typists at the [typist guild](https://5x5x5x5.github.io/typist-guild/).
+Sign in with GitHub on the board's `/account` page, generate a token, and
+drop these two lines in your vimrc (the account page prints them for you):
+
+```vim
+let g:gt_hub_token = 'gt_...'
+```
+
+From then on it's one command, from any of your machines:
+
+```vim
+:GT publish                " export + upload, prints your rank
+```
+
+Publishing is idempotent like importing — the guild merges by
+field-wise max, so republishing never double-counts. Prefer the shell?
+The account page also prints a `curl` one-liner for your `:GT export`
+file, and the board accepts drag-and-drop uploads too.
 
 ## License
 
