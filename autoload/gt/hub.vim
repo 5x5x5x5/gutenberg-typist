@@ -71,8 +71,8 @@ function! s:OnPublished(body) abort
     echohl WarningMsg | echomsg 'GT: Guild rejected the upload: ' . l:data.error | echohl None
     return
   endif
-  let l:msg = printf('GT: Published — #%d of %d (best %d wpm)',
-        \ l:data.rank, l:data.total_users, l:data.best_wpm)
+  let l:msg = printf('GT: Published %d new session(s) — #%d of %d (best %d wpm)',
+        \ get(l:data, 'new_sessions', 0), l:data.rank, l:data.total_users, l:data.best_wpm)
   if get(l:data, 'suspicious', v:false)
     let l:msg .= ' — flagged as implausible (honor system!)'
   endif

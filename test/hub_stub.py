@@ -21,6 +21,8 @@ class Handler(BaseHTTPRequestHandler):
             "rank": 1,
             "total_users": 3,
             "best_wpm": 72,
+            "new_sessions": 3,
+            "total_sessions": 3,
             "suspicious": False,
         }
         data = json.dumps(payload).encode()

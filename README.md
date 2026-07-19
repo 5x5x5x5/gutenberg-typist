@@ -111,13 +111,19 @@ Books and session data are stored under `~/.vim/gutenberg-typist/`:
 books/{id}/text.txt        -- cleaned book text
 books/{id}/metadata.json   -- title, author
 sessions/{id}.json         -- typing progress
-lifetime_stats.json        -- accumulated stats, one record per machine
+session_log.json           -- one immutable record per typing session
 ```
+
+Each finished session appends one record: machine, date, book, characters,
+errors, corrections, active typing time. No keystroke timings and no
+clock times ever leave the machine — dates only. The full format is
+[SPEC.md](https://github.com/5x5x5x5/typist-guild/blob/main/SPEC.md) in
+the typist-guild repo.
 
 ## Syncing stats between machines
 
-Lifetime stats are tracked per machine and merge cleanly, so you can
-practice on several machines and combine the results:
+Sessions are recorded per machine and merge cleanly, so you can practice
+on several machines and combine the results:
 
 ```vim
 " On machine A:
@@ -127,10 +133,10 @@ practice on several machines and combine the results:
 :GT import ~/gutenberg-typist-export.json
 ```
 
-Importing is idempotent: re-importing the same bundle, or an older one,
-never double-counts. Each machine's counters only ever grow, and importing
-keeps the newest snapshot per machine. Book progress is merged per book by
-`gt#storage#MergeSession()`.
+Importing is set union: records are immutable and keyed by id, so
+re-importing the same bundle, or an older one, adds nothing and never
+double-counts. Book progress (for `:GT resume`) rides along and merges
+newest-wins per book.
 
 Machine identity defaults to `hostname()`. Override it if two of your
 machines share a hostname, or to keep hostnames out of bundles you share:
@@ -160,8 +166,8 @@ From then on it's one command, from any of your machines:
 :GT publish                " export + upload, prints your rank
 ```
 
-Publishing is idempotent like importing — the guild merges by
-field-wise max, so republishing never double-counts. Prefer the shell?
+Publishing is idempotent like importing — the guild unions session
+records by id, so republishing never double-counts. Prefer the shell?
 The account page also prints a `curl` one-liner for your `:GT export`
 file, and the board accepts drag-and-drop uploads too.
 

@@ -54,20 +54,23 @@ CONTENTS                                                         *gt-contents*
     Pick from books already downloaded (works offline).
 
 :GT export [{file}]                                               *:GT-export*
-    Write a portable stats bundle (default ~/gutenberg-typist-export.json).
-    Use it to move stats between machines or submit to the leaderboard.
+    Write a portable stats bundle (default ~/gutenberg-typist-export.json):
+    your closed session records plus per-book resume progress. The format
+    is SPEC.md in the typist-guild repo (schema 1).
 
 :GT import {file}                                                 *:GT-import*
-    Merge a bundle exported on another machine. Imports are idempotent:
-    counters merge by field-wise max per machine, so re-importing or
-    importing an old bundle never double-counts.
+    Merge a bundle exported on another machine. Records are immutable
+    and merge by set union on their ids, so re-importing (or importing
+    an old bundle) never double-counts — it simply adds nothing. Old
+    counter-format (v0) bundles are refused: update the plugin on the
+    exporting machine and re-export there instead.
 
 :GT publish                                                      *:GT-publish*
     Put your stats on the typist guild board: exports a bundle and
     uploads it (async, needs curl). Publishing is idempotent like
-    |:GT-import| — the guild merges by field-wise max, so republishing
-    never double-counts. Requires |g:gt_hub_token|. The response is
-    kept in g:gt_hub_last for inspection.
+    |:GT-import| — the guild unions session records by id, so
+    republishing never double-counts. Requires |g:gt_hub_token|. The
+    response is kept in g:gt_hub_last for inspection.
 
 ==============================================================================
 3. CONFIGURATION                                                   *gt-config*
@@ -112,8 +115,13 @@ Everything lives under ~/.vim/gutenberg-typist/ : >
 
     books/{id}/text.txt, metadata.json    cached books
     sessions/{id}.json                    per-book progress
-    lifetime_stats.json                   per-machine counters
+    session_log.json                      one record per typing session
 <
+Each finished session appends one immutable record (machine, date, book,
+chars, errors, corrections, active time). Nothing leaves the machine
+except what you see in an export: no keystroke timings, no clock times —
+dates only. Stats from before the session log are folded in once as a
+single "legacy" record per machine.
 Cross-machine sync is |:GT-export| on one machine, copy the file, and
 |:GT-import| on the other. The public leaderboard is one command —
 |:GT-publish| — or upload an export on the guild's /account page:

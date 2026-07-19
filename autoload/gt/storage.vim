@@ -28,11 +28,6 @@ function! s:NumOr0(v) abort
   return s:IsNum(a:v) ? a:v : 0
 endfunction
 
-" Vim's max() rejects Floats (E892); '>' compares Number/Float mixes fine.
-function! s:NumMax(a, b) abort
-  return a:a > a:b ? a:a : a:b
-endfunction
-
 " json_encode writes Floats at ~6 significant digits, so large accumulated
 " values can shrink on round-trip, breaking the only-grows guarantee the
 " import merge relies on. Keep accumulated seconds integral.
@@ -203,62 +198,144 @@ function! s:SaveLifetimeV2(data) abort
   return s:WriteJson(s:StatsPath(), a:data)
 endfunction
 
-" Aggregate view across machines, in the pre-v2 flat shape callers expect.
-function! gt#storage#LoadLifetimeStats() abort
-  let l:agg = s:EmptyCounters()
-  let l:agg.best_wpm = 0
-  let l:machines = s:LoadLifetimeV2().machines
-  for l:rec in values(l:machines)
+" Session log (SPEC.md schema 1)
+"
+" The local source of truth is an append-only array of immutable session
+" records at session_log.json. Everything else — :GT stats, export,
+" publish — derives from it. The legacy counter file is migrated into
+" the log exactly once (§9) and then renamed out of the way.
+
+let s:GENERATOR = 'gutenberg-typist/0.5.0'
+
+function! s:LogPath() abort
+  return s:GetBaseDir() . '/session_log.json'
+endfunction
+
+function! s:RawLog() abort
+  let l:data = s:ReadJson(s:LogPath())
+  return type(l:data) == v:t_list ? l:data : []
+endfunction
+
+" One-time v0 counter migration (SPEC §9): one legacy record per machine,
+" carrying the original counters verbatim; then the counter file is renamed
+" so migration can never run twice. Runs only on the machine that owns the
+" counters — v0 *bundles* are refused by ImportBundle for the same reason.
+let s:migrated = 0
+function! s:EnsureMigrated() abort
+  if s:migrated
+    return
+  endif
+  let s:migrated = 1
+  let l:stats_path = s:StatsPath()
+  if !filereadable(l:stats_path)
+    return
+  endif
+  let l:log = s:RawLog()
+  let l:today = strftime('%Y-%m-%d')
+  for [l:id, l:rec] in items(s:LoadLifetimeV2().machines)
     if type(l:rec) != v:t_dict
       continue
     endif
-    let l:agg.total_chars += s:NumOr0(get(l:rec, 'total_chars', 0))
-    let l:agg.correct_chars += s:NumOr0(get(l:rec, 'correct_chars', 0))
-    let l:agg.total_time_seconds += s:NormalizeSeconds(s:NumOr0(get(l:rec, 'total_time_seconds', 0)))
-    let l:agg.sessions_count += s:NumOr0(get(l:rec, 'sessions_count', 0))
-    let l:agg.best_wpm = s:NumMax(l:agg.best_wpm, s:NumOr0(get(l:rec, 'best_wpm', 0)))
+    let l:chars = s:NumOr0(get(l:rec, 'total_chars', 0))
+    let l:correct = s:NumOr0(get(l:rec, 'correct_chars', 0))
+    let l:secs = s:NormalizeSeconds(s:NumOr0(get(l:rec, 'total_time_seconds', 0)))
+    call add(l:log, {
+          \ 'id': gt#util#LegacyUuid(l:id),
+          \ 'machine': l:id,
+          \ 'date': l:today,
+          \ 'legacy': v:true,
+          \ 'legacy_counters': l:rec,
+          \ 'active_ms': l:secs * 1000,
+          \ 'wall_ms': l:secs * 1000,
+          \ 'chars_typed': l:chars,
+          \ 'errors_uncorrected': l:chars > l:correct ? l:chars - l:correct : 0,
+          \})
   endfor
-  if type(l:agg.best_wpm) == v:t_float
-    let l:agg.best_wpm = float2nr(round(l:agg.best_wpm))
+  call s:WriteJson(s:LogPath(), l:log)
+  call rename(l:stats_path, l:stats_path . '.v0')
+endfunction
+
+function! gt#storage#LoadSessionLog() abort
+  call s:EnsureMigrated()
+  return s:RawLog()
+endfunction
+
+function! gt#storage#AppendSessionRecord(record) abort
+  call s:EnsureMigrated()
+  let l:log = s:RawLog()
+  call add(l:log, a:record)
+  " ponytail: whole-file rewrite per session; years of use is a few
+  " thousand ~200-byte records, revisit if it ever hurts.
+  return s:WriteJson(s:LogPath(), l:log)
+endfunction
+
+" Sorted-keys, no-whitespace JSON — record identity for the §4 immutability
+" check. Mirrors canonicalJson in typist-guild's src/bundle.ts.
+function! s:CanonicalJson(val) abort
+  let l:t = type(a:val)
+  if l:t == v:t_dict
+    let l:parts = []
+    for l:key in sort(copy(keys(a:val)))
+      call add(l:parts, json_encode(l:key) . ':' . s:CanonicalJson(a:val[l:key]))
+    endfor
+    return '{' . join(l:parts, ',') . '}'
+  elseif l:t == v:t_list
+    return '[' . join(map(copy(a:val), 's:CanonicalJson(v:val)'), ',') . ']'
   endif
+  return json_encode(a:val)
+endfunction
+
+" Aggregate lifetime view for :GT stats, derived from the session log.
+" Flat counter shape kept so the stats popup needs no changes. Legacy
+" records contribute their preserved v0 counters where they can.
+function! gt#storage#LoadLifetimeStats() abort
+  let l:agg = s:EmptyCounters()
+  let l:agg.best_wpm = 0
+  let l:machines = {}
+  let l:best = 0.0
+  for l:rec in gt#storage#LoadSessionLog()
+    if type(l:rec) != v:t_dict
+      continue
+    endif
+    let l:chars = s:NumOr0(get(l:rec, 'chars_typed', 0))
+    let l:errors = s:NumOr0(get(l:rec, 'errors_uncorrected', 0))
+    let l:active = s:NumOr0(get(l:rec, 'active_ms', 0))
+    let l:agg.total_chars += l:chars
+    let l:agg.correct_chars += l:chars > l:errors ? l:chars - l:errors : 0
+    let l:agg.total_time_seconds += l:active / 1000
+    let l:machines[get(l:rec, 'machine', '?')] = 1
+    if get(l:rec, 'legacy', v:false)
+      let l:lc = get(l:rec, 'legacy_counters', {})
+      let l:n = type(l:lc) == v:t_dict ? s:NumOr0(get(l:lc, 'sessions_count', 1)) : 1
+      let l:agg.sessions_count += l:n > 0 ? l:n : 1
+      let l:lb = type(l:lc) == v:t_dict ? s:NumOr0(get(l:lc, 'best_wpm', 0)) : 0
+      if l:lb * 1.0 > l:best
+        let l:best = l:lb * 1.0
+      endif
+    else
+      let l:agg.sessions_count += 1
+      " Same consumer rule as the guild: sub-10s flukes never set bests.
+      if l:active >= 10000 && l:chars > 0
+        let l:wpm = (l:chars / 5.0) / (l:active / 60000.0)
+        if l:wpm > l:best
+          let l:best = l:wpm
+        endif
+      endif
+    endif
+  endfor
+  let l:agg.best_wpm = float2nr(round(l:best))
   let l:agg.machines_count = len(l:machines)
   return l:agg
 endfunction
 
-" Accumulate a finished session into this machine's record. Counter fields
-" are summed; best_wpm is max-merged (it is a high-water mark, not a sum).
-function! gt#storage#AddLifetimeDeltas(deltas) abort
-  let l:v2 = s:LoadLifetimeV2()
-  let l:id = gt#storage#MachineId()
-  if !has_key(l:v2.machines, l:id)
-    let l:v2.machines[l:id] = s:EmptyCounters()
-  endif
-  let l:rec = l:v2.machines[l:id]
-  for l:key in ['total_chars', 'correct_chars', 'sessions_count']
-    if has_key(a:deltas, l:key)
-      let l:rec[l:key] = s:NumOr0(get(l:rec, l:key, 0)) + a:deltas[l:key]
-    endif
-  endfor
-  if has_key(a:deltas, 'total_time_seconds')
-    let l:rec.total_time_seconds = s:NumOr0(get(l:rec, 'total_time_seconds', 0))
-          \ + s:NormalizeSeconds(a:deltas.total_time_seconds)
-  endif
-  if has_key(a:deltas, 'best_wpm')
-    let l:rec.best_wpm = s:NumMax(s:NumOr0(get(l:rec, 'best_wpm', 0)), a:deltas.best_wpm)
-  endif
-  return s:SaveLifetimeV2(l:v2)
-endfunction
-
-" Portable export/import
+" Portable export/import (SPEC.md schema 1)
 "
-" Bundle format v1:
-"   {'format_version': 1, 'exported_from': '<machine-id>', 'exported_at': N,
-"    'machines': {'<machine-id>': {counters...}}, 'sessions': {'<book_id>': {...}}}
-" Machine records merge by field-wise max over the union of numeric keys, so
-" newer plugin versions (or external tools, e.g. a leaderboard ingester) can
-" add counters without breaking older importers. Counter values must be
-" integers that only ever grow on their owning machine; on import, floats
-" are rounded and non-numeric values are dropped.
+" A bundle is {'schema': 1, 'generator': ..., 'sessions': [records...]}
+" plus 'gt_progress', a plugin-private extension carrying per-book resume
+" offsets (unknown top-level fields are legal per SPEC §2 — the guild
+" ignores it, other plugin instances use it for cross-machine resume).
+" Import is set union by record id: idempotent by construction, and a
+" record that changed content under the same id aborts the whole import.
 
 function! gt#storage#ListSessions() abort
   let l:sessions_dir = s:GetBaseDir() . '/sessions'
@@ -276,41 +353,25 @@ function! gt#storage#ListSessions() abort
 endfunction
 
 function! gt#storage#ExportBundle(path) abort
-  let l:machines = s:LoadLifetimeV2().machines
-  let l:sessions = gt#storage#ListSessions()
-  if empty(l:machines) && empty(l:sessions)
+  let l:log = gt#storage#LoadSessionLog()
+  let l:progress = gt#storage#ListSessions()
+  if empty(l:log) && empty(l:progress)
     return {'ok': v:false, 'msg': 'No stats to export yet'}
   endif
+  " Only closed sessions are in the log, so the SPEC §3 closed-sessions
+  " rule holds by construction. No 'user' field: the upload token carries
+  " identity (§2).
   let l:bundle = {
-        \ 'format_version': 1,
-        \ 'exported_from': gt#storage#MachineId(),
-        \ 'exported_at': localtime(),
-        \ 'machines': l:machines,
-        \ 'sessions': l:sessions,
+        \ 'schema': 1,
+        \ 'generator': s:GENERATOR,
+        \ 'sessions': l:log,
+        \ 'gt_progress': l:progress,
         \}
   if !s:WriteJson(a:path, l:bundle)
     return {'ok': v:false, 'msg': 'Failed to write ' . a:path}
   endif
-  return {'ok': v:true, 'msg': printf('Exported %d machine record(s), %d session(s) to %s',
-        \ len(l:machines), len(l:sessions), a:path)}
-endfunction
-
-" Records are maps of integer counters by contract. Floats are rounded and
-" anything non-numeric is dropped rather than persisted: a malformed bundle
-" must never poison values that printf('%d')/arithmetic consumers rely on
-" (E805/E735), and re-exports must never propagate the poison downstream.
-function! s:MergeMachineRecord(local, incoming) abort
-  let l:merged = {}
-  for l:key in uniq(sort(keys(a:local) + keys(a:incoming)))
-    let l:lv = get(a:local, l:key, 0)
-    let l:iv = get(a:incoming, l:key, 0)
-    if !s:IsNum(l:lv) || !s:IsNum(l:iv)
-      continue
-    endif
-    let l:val = s:NumMax(l:lv, l:iv)
-    let l:merged[l:key] = type(l:val) == v:t_float ? float2nr(round(l:val)) : l:val
-  endfor
-  return l:merged
+  return {'ok': v:true, 'msg': printf('Exported %d session record(s), %d book(s) in progress to %s',
+        \ len(l:log), len(l:progress), a:path)}
 endfunction
 
 " Sessions in a bundle are untrusted: keep only the known numeric fields,
@@ -335,29 +396,61 @@ function! gt#storage#ImportBundle(path) abort
     return {'ok': v:false, 'msg': 'Cannot read or parse ' . a:path}
   endif
   if type(l:bundle) != v:t_dict
-        \ || type(get(l:bundle, 'machines', 0)) != v:t_dict
-        \ || type(get(l:bundle, 'sessions', 0)) != v:t_dict
     return {'ok': v:false, 'msg': 'Not a gutenberg-typist export bundle: ' . a:path}
   endif
-  if get(l:bundle, 'format_version', 0) != 1
-    return {'ok': v:false, 'msg': printf(
-          \ 'Bundle format_version %s not supported (expected 1) — update gutenberg-typist',
-          \ string(get(l:bundle, 'format_version', '?')))}
+  if has_key(l:bundle, 'format_version')
+    " SPEC §9: v0 counter bundles migrate only on their owning machine —
+    " migrating a stale copy here would mint the same deterministic id
+    " with different totals, the one conflict §4 forbids.
+    return {'ok': v:false, 'msg':
+          \ 'v0 counter bundle — update gutenberg-typist on the exporting machine and re-export'}
+  endif
+  let l:schema = get(l:bundle, 'schema', v:null)
+  if type(l:schema) != v:t_number || l:schema != 1
+        \ || type(get(l:bundle, 'sessions', 0)) != v:t_list
+    if type(l:schema) == v:t_number && l:schema > 1
+      return {'ok': v:false, 'msg': printf(
+            \ 'Bundle schema %d not supported — update gutenberg-typist', l:schema)}
+    endif
+    return {'ok': v:false, 'msg': 'Not a schema-1 bundle: ' . a:path}
   endif
 
-  let l:v2 = s:LoadLifetimeV2()
-  for [l:id, l:incoming] in items(l:bundle.machines)
-    if type(l:incoming) != v:t_dict
+  call s:EnsureMigrated()
+  let l:log = s:RawLog()
+  let l:by_id = {}
+  for l:rec in l:log
+    if type(l:rec) == v:t_dict && type(get(l:rec, 'id', 0)) == v:t_string
+      let l:by_id[l:rec.id] = s:CanonicalJson(l:rec)
+    endif
+  endfor
+  let l:added = 0
+  let l:conflicts = []
+  for l:rec in l:bundle.sessions
+    if type(l:rec) != v:t_dict || type(get(l:rec, 'id', 0)) != v:t_string
+          \ || get(l:rec, 'id', '') ==# ''
       continue
     endif
-    let l:v2.machines[l:id] = s:MergeMachineRecord(get(l:v2.machines, l:id, {}), l:incoming)
+    if has_key(l:by_id, l:rec.id)
+      if l:by_id[l:rec.id] !=# s:CanonicalJson(l:rec)
+        call add(l:conflicts, l:rec.id)
+      endif
+      continue
+    endif
+    call add(l:log, l:rec)
+    let l:by_id[l:rec.id] = s:CanonicalJson(l:rec)
+    let l:added += 1
   endfor
-  if !s:SaveLifetimeV2(l:v2)
-    return {'ok': v:false, 'msg': 'Failed to save merged stats'}
+  if !empty(l:conflicts)
+    " Abort before writing anything: records are immutable (§4).
+    return {'ok': v:false, 'msg': 'Import aborted — record content changed for id(s) '
+          \ . join(l:conflicts, ', ') . ' (session records are immutable; nothing was imported)'}
+  endif
+  if l:added > 0 && !s:WriteJson(s:LogPath(), l:log)
+    return {'ok': v:false, 'msg': 'Failed to save merged session log'}
   endif
 
-  let l:imported_sessions = 0
-  for [l:book_id, l:incoming] in items(l:bundle.sessions)
+  let l:imported_books = 0
+  for [l:book_id, l:incoming] in items(get(l:bundle, 'gt_progress', {}))
     " Numeric keys only: the id becomes a filename, so anything else
     " (e.g. '../x') could escape the sessions directory.
     if l:book_id !~# '^\d\+$' || type(l:incoming) != v:t_dict
@@ -372,12 +465,12 @@ function! gt#storage#ImportBundle(path) abort
       " Write directly rather than via SaveSession, which would re-stamp
       " last_active and make every imported record look brand-new.
       call s:WriteJson(s:SessionPath(l:book_id), l:merged)
-      let l:imported_sessions += 1
+      let l:imported_books += 1
     endif
   endfor
 
-  return {'ok': v:true, 'msg': printf('Merged %d machine record(s), %d session(s) from %s',
-        \ len(l:bundle.machines), l:imported_sessions, a:path)}
+  return {'ok': v:true, 'msg': printf('Merged %d new session record(s), %d book progress update(s) from %s',
+        \ l:added, l:imported_books, a:path)}
 endfunction
 
 " Decides what happens when an imported bundle contains progress for a book

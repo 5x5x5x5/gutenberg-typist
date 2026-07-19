@@ -4,26 +4,44 @@ function! gt#stats#New() abort
         \ 'total_chars_typed': 0,
         \ 'correct_chars': 0,
         \ 'samples': [],
+        \ 'active_ms': 0,
+        \ 'last_event': v:null,
+        \ 'ever_wrong': {},
+        \ 'rel_typed': 0,
+        \ 'rel_correct': 0,
         \}
 endfunction
 
-function! gt#stats#UpdateFromComparison(state, typed_len, correct_count, prev_typed_len) abort
-  let l:now = reltimefloat(reltime())
-
+" a:now is injected by the caller (engine passes the real clock, the test
+" harness passes synthetic times) so the SPEC §5.1 active-time rule is
+" verifiable without real sleeps.
+function! gt#stats#UpdateFromComparison(state, typed_len, correct_count, prev_typed_len, now) abort
   if a:state.start_time is v:null
-    let a:state.start_time = l:now
+    let a:state.start_time = a:now
   endif
+
+  " Active time (SPEC §5.1): gaps between input events longer than 5 s are
+  " excluded in full, shorter gaps count entirely.
+  if a:state.last_event isnot v:null
+    let l:gap = a:now - a:state.last_event
+    if l:gap > 0 && l:gap <= 5.0
+      let a:state.active_ms += float2nr(round(l:gap * 1000))
+    endif
+  endif
+  let a:state.last_event = a:now
 
   " Track incremental changes
   if a:typed_len > a:prev_typed_len
     let a:state.total_chars_typed += a:typed_len - a:prev_typed_len
   endif
 
-  " Correct chars is the current snapshot
+  " Snapshots of the current transcript (session-relative)
   let a:state.correct_chars = a:correct_count
+  let a:state.rel_typed = a:typed_len
+  let a:state.rel_correct = a:correct_count
 
   " Add rolling sample
-  call add(a:state.samples, {'time': l:now, 'typed': a:typed_len})
+  call add(a:state.samples, {'time': a:now, 'typed': a:typed_len})
 endfunction
 
 function! gt#stats#Wpm(state) abort

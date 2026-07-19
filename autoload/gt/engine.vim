@@ -34,6 +34,8 @@ function! gt#engine#Start(book_id, source_text, resume_offset) abort
         \ 'prev_typed_len': 0,
         \ 'resume_offset': a:resume_offset,
         \ 'save_timer': v:null,
+        \ 'session_uuid': gt#util#Uuid4(),
+        \ 'session_date': strftime('%Y-%m-%d'),
         \}
 
   " Open UI
@@ -109,6 +111,9 @@ function! gt#engine#OnTextChanged() abort
       let l:correct_count += 1
     else
       let l:matches[l:i] = v:false
+      " Ever-mismatched positions feed the SPEC §5.2 corrections count at
+      " session end (ever wrong minus still wrong = fixed).
+      let s:state.stats.ever_wrong[l:i] = 1
     endif
     let l:i += 1
   endwhile
@@ -120,7 +125,8 @@ function! gt#engine#OnTextChanged() abort
   let l:base = min([s:state.resume_offset, l:source_len])
   let l:rel_typed = max([l:typed_len - l:base, 0])
   let l:rel_correct = max([l:correct_count - l:base, 0])
-  call gt#stats#UpdateFromComparison(s:state.stats, l:rel_typed, l:rel_correct, s:state.prev_typed_len)
+  call gt#stats#UpdateFromComparison(s:state.stats, l:rel_typed, l:rel_correct,
+        \ s:state.prev_typed_len, reltimefloat(reltime()))
   let s:state.prev_typed_len = l:rel_typed
 
   " Sync source scroll first so highlights apply to the post-scroll
@@ -174,37 +180,66 @@ function! gt#engine#Stop() abort
   " Save session before cleanup
   call s:SaveSession()
 
-  " Update lifetime stats
-  let l:deltas = {
-        \ 'total_chars': s:state.stats.total_chars_typed,
-        \ 'correct_chars': s:state.stats.correct_chars,
-        \ 'sessions_count': 1,
-        \}
+  " Build a SPEC.md schema-1 session record from the final transcript.
   let l:elapsed = 0.0
   if s:state.stats.start_time isnot v:null
     let l:elapsed = reltimefloat(reltime()) - s:state.stats.start_time
-    let l:deltas.total_time_seconds = float2nr(round(l:elapsed))
-    " Session-average WPM; sessions under 10s give fluke values, skip them.
-    if l:elapsed > 10.0 && s:state.stats.total_chars_typed > 0
-      let l:deltas.best_wpm = float2nr(round(
-            \ (s:state.stats.total_chars_typed / 5.0) / (l:elapsed / 60.0)))
-    endif
   endif
-  let l:prev_best = get(gt#storage#LoadLifetimeStats(), 'best_wpm', 0)
-  call gt#storage#AddLifetimeDeltas(l:deltas)
+  let l:chars = s:state.stats.rel_typed
+  let l:errors = s:state.stats.rel_typed - s:state.stats.rel_correct
+  if l:errors < 0
+    let l:errors = 0
+  endif
+  " Corrections (§5.2): ever-mismatched positions that are not mismatched
+  " now, restricted to the final transcript — abandoned tails don't count.
+  let l:base = s:state.resume_offset
+  let l:ever = 0
+  for l:pos in keys(s:state.stats.ever_wrong)
+    if str2nr(l:pos) <= l:base + l:chars
+      let l:ever += 1
+    endif
+  endfor
+  let l:corrections = l:ever - l:errors > 0 ? l:ever - l:errors : 0
+  let l:wall_ms = float2nr(round(l:elapsed * 1000))
+  " Per-event rounding can nudge active a few ms past wall; never let a
+  " legitimate session trip the active<=wall plausibility flag.
+  let l:active_ms = min([s:state.stats.active_ms, l:wall_ms])
 
-  " One-line recap; empty sessions keep the plain message.
+  let l:prev_best = get(gt#storage#LoadLifetimeStats(), 'best_wpm', 0)
   let l:msg = 'GT: Session saved'
-  if s:state.stats.total_chars_typed > 0 && l:elapsed > 0.0
-    let l:msg = printf('GT: Session saved — %.0f wpm · %.1f%% accuracy · %d chars · %s',
-          \ (s:state.stats.total_chars_typed / 5.0) / (l:elapsed / 60.0),
-          \ gt#stats#Accuracy(s:state.stats),
-          \ s:state.stats.total_chars_typed,
-          \ l:elapsed >= 60.0
-          \   ? float2nr(round(l:elapsed / 60.0)) . ' min'
-          \   : float2nr(round(l:elapsed)) . ' sec')
-    if has_key(l:deltas, 'best_wpm') && l:deltas.best_wpm > l:prev_best
-      let l:msg .= ' · new best WPM!'
+  if l:chars > 0
+    let l:book = {'gutenberg_id': str2nr(s:state.book_id)}
+    let l:meta = gt#storage#LoadBookMetadata(s:state.book_id)
+    if l:meta isnot v:null && get(l:meta, 'title', '') !=# ''
+      let l:book.title = l:meta.title
+    endif
+    call gt#storage#AppendSessionRecord({
+          \ 'id': s:state.session_uuid,
+          \ 'machine': gt#storage#MachineId(),
+          \ 'date': s:state.session_date,
+          \ 'book': l:book,
+          \ 'range': {'start': l:base, 'end': l:base + l:chars},
+          \ 'active_ms': l:active_ms,
+          \ 'wall_ms': l:wall_ms,
+          \ 'chars_typed': l:chars,
+          \ 'errors_uncorrected': l:errors,
+          \ 'corrections': l:corrections,
+          \})
+
+    " One-line recap on SPEC §5.3 numbers: gross WPM over active time,
+    " accuracy = (chars - errors) / (chars + corrections).
+    if l:active_ms > 0
+      let l:wpm = (l:chars / 5.0) / (l:active_ms / 60000.0)
+      let l:msg = printf('GT: Session saved — %.0f wpm · %.1f%% accuracy · %d chars · %s',
+            \ l:wpm,
+            \ ((l:chars - l:errors) * 100.0) / (l:chars + l:corrections),
+            \ l:chars,
+            \ l:elapsed >= 60.0
+            \   ? float2nr(round(l:elapsed / 60.0)) . ' min'
+            \   : float2nr(round(l:elapsed)) . ' sec')
+      if l:active_ms >= 10000 && float2nr(round(l:wpm)) > l:prev_best
+        let l:msg .= ' · new best WPM!'
+      endif
     endif
   endif
 
