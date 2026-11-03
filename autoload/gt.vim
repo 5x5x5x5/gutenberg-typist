@@ -34,8 +34,6 @@ function! gt#Command(...) abort
     else
       echohl WarningMsg | echomsg 'GT: ' . l:res.msg | echohl None
     endif
-  elseif l:subcmd ==# 'publish'
-    call gt#hub#Publish()
   elseif l:subcmd ==# 'import'
     if a:0 < 2
       echohl WarningMsg | echomsg 'GT: Usage: :GT import <file>' | echohl None
@@ -57,7 +55,7 @@ function! gt#Command(...) abort
 endfunction
 
 function! gt#Complete(arglead, cmdline, cursorpos) abort
-  let l:subcmds = ['search', 'start', 'resume', 'stop', 'stats', 'library', 'export', 'import', 'publish']
+  let l:subcmds = ['search', 'start', 'resume', 'stop', 'stats', 'library', 'export', 'import']
   let l:before = strpart(a:cmdline, 0, a:cursorpos)
   let l:parts = split(l:before, '\s\+')
   " Still typing the subcommand itself (no space after it yet)
@@ -101,6 +99,7 @@ function! s:OnSearchSelect(item, _idx) abort
         \ 'title': a:item.title,
         \ 'author': a:item.author,
         \ 'authors': a:item.authors,
+        \ 'download_url': get(a:item, 'download_url', ''),
         \})
 endfunction
 
@@ -223,7 +222,7 @@ function! s:ShowStats() abort
   call add(l:lines, printf('  Chars:     %d typed, %d correct', l:lifetime.total_chars, l:lifetime.correct_chars))
   if l:lifetime.total_chars > 0
     call add(l:lines, printf('  Accuracy:  %.1f%%',
-          \ (l:lifetime.correct_chars * 100.0) / l:lifetime.total_chars))
+          \ (l:lifetime.correct_chars * 100.0) / (l:lifetime.total_chars + get(l:lifetime, 'corrections', 0))))
   endif
   if l:lifetime.total_time_seconds > 0
     let l:mins = l:lifetime.total_time_seconds / 60.0

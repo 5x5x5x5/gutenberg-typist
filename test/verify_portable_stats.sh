@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Headless verification of the schema-1 stats pipeline (SPEC.md in the
 # typist-guild repo): session log, legacy migration, export/import by set
-# union, and :GT publish. Simulates machines with sandboxed $HOMEs.
+# union, and :GT publish. Simulates machines with isolated data directories.
 set -u
 cd "$(dirname "$0")/.."
 PLUGIN_DIR=$PWD
@@ -10,11 +10,12 @@ mkdir -p "$T/homeA" "$T/homeB" "$T/homeC"
 PASS=0; FAIL=0
 
 run_vim() {  # run_vim <home> <machine-id> <ex-command>...
-  local home=$1 mid=$2; shift 2
+  local data_root=$1 mid=$2; shift 2
   local args=()
   for c in "$@"; do args+=(-c "$c"); done
-  HOME="$home" vim -es -N -u NONE \
+  vim -es -N -u NONE -i NONE \
     --cmd "set rtp+=$PLUGIN_DIR" \
+    --cmd "let g:gt_data_dir='$data_root/.vim/gutenberg-typist'" \
     --cmd "let g:gt_machine_id='$mid'" \
     "${args[@]}" -c 'qa!'
 }
@@ -277,27 +278,36 @@ run_vim "$T/homeP" machP \
 check "stop recap reports wpm/accuracy/chars" "$T/c20" 'Session saved — [0-9]+ wpm · 100.0% accuracy · 13 chars · [0-9]+ sec'
 
 # ── 15. :GT publish posts the bundle to the guild ──────────────────────────
-STUB_PORT=$((20000 + RANDOM % 20000))
-python3 test/hub_stub.py "$STUB_PORT" "$T/hub-capture" &
-STUB_PID=$!
-sleep 0.3
+mkdir -p "$T/bin"
+cat > "$T/bin/curl" <<'PYTHON'
+#!/usr/bin/env python3
+import json, os, pathlib, sys
+args = sys.argv[1:]
+auth = next(a for a in args if a.startswith('Authorization: Bearer '))
+body = pathlib.Path(args[args.index('--data-binary') + 1][1:]).read_text()
+pathlib.Path(os.environ['GT_HUB_CAPTURE']).write_text('AUTH:' + auth.split(': ', 1)[1] + '\n' + body)
+print(json.dumps({'new_sessions': 3, 'rank': 1, 'total_users': 3, 'best_wpm': 72}))
+PYTHON
+chmod +x "$T/bin/curl"
+export PATH="$T/bin:$PATH"
+export GT_HUB_CAPTURE="$T/hub-capture"
 run_vim "$T/homeA" machA \
   "runtime plugin/gt.vim" \
-  "let g:gt_hub_url='http://127.0.0.1:$STUB_PORT'" \
+  "runtime extras/guild/plugin/gt_guild.vim | let g:gt_hub_url='https://guild.invalid'" \
   "let g:gt_hub_token='gt_testtoken'" \
   "redir! > $T/c21" \
-  "GT publish" \
+  "GTGuildPublish" \
   "let i=0 | while i < 50 && !exists('g:gt_hub_last') | sleep 100m | let i+=1 | endwhile" \
   "redir END"
-kill "$STUB_PID" 2>/dev/null
 check "publish sends the bearer token"        "$T/hub-capture" '^AUTH:Bearer gt_testtoken$'
 check "publish posts a schema-1 bundle"       "$T/hub-capture" '"schema":1'
 check "publish body carries session records"  "$T/hub-capture" '"machA"'
 check "publish echoes rank + new sessions"    "$T/c21" 'Published 3 new session\(s\) — #1 of 3 \(best 72 wpm\)'
 run_vim "$T/homeA" machA \
   "runtime plugin/gt.vim" \
+  "runtime extras/guild/plugin/gt_guild.vim | let g:gt_hub_url='https://guild.invalid'" \
   "redir! > $T/c22" \
-  "GT publish" \
+  "GTGuildPublish" \
   "redir END"
 check "publish without token points at account" "$T/c22" 'Set g:gt_hub_token first'
 

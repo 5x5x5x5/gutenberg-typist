@@ -2,13 +2,17 @@
 " POST it with async curl. The board's /account page issues the token.
 " g:gt_hub_url exists for self-hosted guilds and the test harness.
 
-let s:default_hub = 'https://typist-guild.example.workers.dev'
+let s:default_hub = ''
 
 function! gt#hub#Url() abort
   return substitute(get(g:, 'gt_hub_url', s:default_hub), '/\+$', '', '')
 endfunction
 
 function! gt#hub#Publish() abort
+  if gt#hub#Url() ==# ''
+    echohl WarningMsg | echomsg 'GT: Set g:gt_hub_url to your guild board URL first' | echohl None
+    return
+  endif
   let l:token = get(g:, 'gt_hub_token', '')
   if l:token ==# ''
     echohl WarningMsg
@@ -24,24 +28,37 @@ function! gt#hub#Publish() abort
     return
   endif
 
-  let l:ctx = {'data': '', 'tmp': l:tmp}
+  let l:ctx = {'data': '', 'tmp': l:tmp, 'closed': 0, 'status': v:null, 'done': 0}
   function! l:ctx.on_out(_ch, msg) abort
     let self.data .= a:msg
   endfunction
-  function! l:ctx.on_close(_ch) abort
+  function! l:ctx.finish() abort
+    if self.done || !self.closed || self.status is v:null
+      return
+    endif
+    let self.done = 1
     call delete(self.tmp)
     let l:body = self.data
-    " Schedule callback to avoid channel-callback restrictions
-    call timer_start(0, {-> s:OnPublished(l:body)})
+    let l:status = self.status
+    call timer_start(0, {-> s:OnPublished(l:body, l:status)})
+  endfunction
+  function! l:ctx.on_close(_ch) abort
+    let self.closed = 1
+    call self.finish()
+  endfunction
+  function! l:ctx.on_exit(_job, status) abort
+    let self.status = a:status
+    call self.finish()
   endfunction
 
-  let l:job = job_start(['curl', '-s', '--max-time', '30',
+  let l:job = job_start(['curl', '--fail', '-s', '--max-time', '30',
         \ '-X', 'POST', gt#hub#Url() . '/api/v1/upload',
         \ '-H', 'Authorization: Bearer ' . l:token,
         \ '-H', 'Content-Type: application/json',
         \ '--data-binary', '@' . l:tmp], {
         \ 'out_cb': l:ctx.on_out,
         \ 'close_cb': l:ctx.on_close,
+        \ 'exit_cb': l:ctx.on_exit,
         \ 'out_mode': 'raw',
         \})
 
@@ -53,7 +70,11 @@ function! gt#hub#Publish() abort
   endif
 endfunction
 
-function! s:OnPublished(body) abort
+function! s:OnPublished(body, status) abort
+  if a:status != 0
+    echohl ErrorMsg | echomsg 'GT: Publish failed — curl exited with status ' . a:status | echohl None
+    return
+  endif
   try
     let l:data = json_decode(a:body)
   catch
@@ -71,6 +92,12 @@ function! s:OnPublished(body) abort
     echohl WarningMsg | echomsg 'GT: Guild rejected the upload: ' . l:data.error | echohl None
     return
   endif
+  for l:key in ['rank', 'total_users', 'best_wpm']
+    if type(get(l:data, l:key, v:null)) != v:t_number
+      echohl ErrorMsg | echomsg 'GT: Publish failed — invalid guild response' | echohl None
+      return
+    endif
+  endfor
   let l:msg = printf('GT: Published %d new session(s) — #%d of %d (best %d wpm)',
         \ get(l:data, 'new_sessions', 0), l:data.rank, l:data.total_users, l:data.best_wpm)
   if get(l:data, 'suspicious', v:false)

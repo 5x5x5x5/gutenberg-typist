@@ -38,7 +38,7 @@ function! gt#ui#Open(source_lines) abort
   let l:source_width = float2nr(l:total_width * l:cfg.split_ratio)
 
   " Vertical split for typing pane on right
-  vnew
+  rightbelow vnew
   let s:state.typing_win = win_getid()
   let s:state.typing_buf = bufnr('%')
   call setbufvar(s:state.typing_buf, '&buftype', 'nofile')
@@ -99,7 +99,7 @@ function! gt#ui#UpdateStatsDisplay(wpm, accuracy, progress) abort
   let l:text = printf(' WPM: %.0f  |  Accuracy: %.1f%%%%  |  Progress: %.1f%%%%',
         \ a:wpm, a:accuracy, a:progress)
   " Escape spaces for statusline
-  let l:bar = substitute(l:text, ' ', '\\ ', 'g')
+  let l:bar = l:text
   call setwinvar(s:state.typing_win, '&statusline', l:bar)
 endfunction
 

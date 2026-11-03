@@ -7,6 +7,7 @@ function! gt#stats#New() abort
         \ 'active_ms': 0,
         \ 'last_event': v:null,
         \ 'ever_wrong': {},
+        \ 'resume_base': 0,
         \ 'rel_typed': 0,
         \ 'rel_correct': 0,
         \}
@@ -42,6 +43,12 @@ function! gt#stats#UpdateFromComparison(state, typed_len, correct_count, prev_ty
 
   " Add rolling sample
   call add(a:state.samples, {'time': a:now, 'typed': a:typed_len})
+  " Keep enough history for the configured rolling window, plus one older
+  " point to anchor its elapsed interval.
+  let l:cutoff = a:now - max([gt#config#Get().wpm_window_seconds, 1]) - 1.0
+  while len(a:state.samples) > 2 && a:state.samples[1].time < l:cutoff
+    call remove(a:state.samples, 0)
+  endwhile
 endfunction
 
 function! gt#stats#Wpm(state) abort
@@ -86,8 +93,18 @@ function! gt#stats#Wpm(state) abort
 endfunction
 
 function! gt#stats#Accuracy(state) abort
-  if a:state.total_chars_typed == 0
+  let l:chars = get(a:state, 'rel_typed', 0)
+  let l:errors = max([l:chars - get(a:state, 'rel_correct', 0), 0])
+  let l:ever = 0
+  let l:limit = get(a:state, 'resume_base', 0) + l:chars
+  for l:pos in keys(get(a:state, 'ever_wrong', {}))
+    if str2nr(l:pos) <= l:limit
+      let l:ever += 1
+    endif
+  endfor
+  let l:corrections = get(a:state, 'corrections', max([l:ever - l:errors, 0]))
+  if l:chars + l:corrections == 0
     return 100.0
   endif
-  return (a:state.correct_chars * 100.0) / a:state.total_chars_typed
+  return ((l:chars - l:errors) * 100.0) / (l:chars + l:corrections)
 endfunction

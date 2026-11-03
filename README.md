@@ -66,7 +66,6 @@ No `Setup()` call is needed — the plugin loads itself. Only call
 | `:GT library` | Browse previously downloaded books |
 | `:GT export [file]` | Export stats and book progress to a portable bundle |
 | `:GT import <file>` | Merge a bundle exported on another machine |
-| `:GT publish` | Upload your stats to the typist guild leaderboard |
 
 ### Quick start
 
@@ -103,9 +102,19 @@ call gt#Setup({
       \})
 ```
 
+Progress is checkpointed every `save_interval_ms` while it changes, and saved
+when a typing pane closes or Vim exits. A failed write is reported in Vim.
+Character counts include Unicode characters, whitespace, and punctuation.
+Accuracy is correct final characters divided by final characters plus corrections;
+WPM uses five characters per word. Live WPM uses the rolling window; the final
+recap uses active session time, excluding gaps longer than five seconds.
+
 ## Data storage
 
-Books and session data are stored under `~/.vim/gutenberg-typist/`:
+Books and session data default to `~/.vim/gutenberg-typist/`. To use another
+location, set `let g:gt_data_dir = '/path/to/typing-data'` before using the plugin.
+
+The directory contains:
 
 ```
 books/{id}/text.txt        -- cleaned book text
@@ -116,7 +125,8 @@ session_log.json           -- one immutable record per typing session
 
 Each finished session appends one record: machine, date, book, characters,
 errors, corrections, active typing time. No keystroke timings and no
-clock times ever leave the machine — dates only. The full format is
+clock times appear in session records — dates only. Portable bundles also carry
+per-book `last_active` timestamps for resume conflict resolution. The full format is
 [SPEC.md](https://github.com/5x5x5x5/typist-guild/blob/main/SPEC.md) in
 the typist-guild repo.
 
@@ -150,26 +160,33 @@ existing machine starts a fresh record, and the old history stays under
 the previous name (totals remain correct, shown as an extra machine in
 `:GT stats`).
 
-## The leaderboard
+## The optional leaderboard companion
 
-Compare with other typists at the [typist guild](https://5x5x5x5.github.io/typist-guild/).
-Sign in with GitHub on the board's `/account` page, generate a token, and
-drop these two lines in your vimrc (the account page prints them for you):
+The core plugin exports portable bundles. Upload one on your guild board's
+`/account` page, or enable the bundled companion for uploads from Vim:
 
 ```vim
+runtime extras/guild/plugin/gt_guild.vim
+let g:gt_hub_url = 'https://your-guild.example'
 let g:gt_hub_token = 'gt_...'
 ```
 
-From then on it's one command, from any of your machines:
+Use the URL and token supplied by your board, then run `:GTGuildPublish`.
+This replaces the former core `:GT publish` command. Publishing remains
+idempotent: the guild merges immutable records by id. See
+[the companion instructions](extras/guild/README.md).
 
-```vim
-:GT publish                " export + upload, prints your rank
+## Development
+
+Run the offline regression tests with Python 3 and Vim installed:
+
+```sh
+python3 -m unittest discover -s test -p 'test_*.py'
+bash test/verify_portable_stats.sh
 ```
 
-Publishing is idempotent like importing — the guild unions session
-records by id, so republishing never double-counts. Prefer the shell?
-The account page also prints a `curl` one-liner for your `:GT export`
-file, and the board accepts drag-and-drop uploads too.
+Tests use temporary data directories and fake curl processes; no live service
+or token is needed.
 
 ## License
 

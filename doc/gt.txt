@@ -43,8 +43,8 @@ CONTENTS                                                         *gt-contents*
 
 :GT stop                                                            *:GT-stop*
     End the session. Progress is saved (also happens automatically when
-    you leave the typing buffer) and a one-line recap is shown: session
-    WPM, accuracy, chars, duration.
+    you close a typing pane or exit Vim) and a one-line recap is shown:
+    session WPM, accuracy, chars, duration.
 
 :GT stats                                                          *:GT-stats*
     Popup with current-session and lifetime stats. Close with q or
@@ -65,13 +65,6 @@ CONTENTS                                                         *gt-contents*
     counter-format (v0) bundles are refused: update the plugin on the
     exporting machine and re-export there instead.
 
-:GT publish                                                      *:GT-publish*
-    Put your stats on the typist guild board: exports a bundle and
-    uploads it (async, needs curl). Publishing is idempotent like
-    |:GT-import| — the guild unions session records by id, so
-    republishing never double-counts. Requires |g:gt_hub_token|. The
-    response is kept in g:gt_hub_last for inspection.
-
 ==============================================================================
 3. CONFIGURATION                                                   *gt-config*
 
@@ -89,14 +82,14 @@ machine ids are shown on your guild board profile: >
 
     let g:gt_machine_id = 'laptop'
 <
-                                                *g:gt_hub_token* *g:gt_hub_url*
-|:GT-publish| needs a token: sign in with GitHub on the guild board's
-/account page, generate one, and set it (the account page prints these
-exact lines): >
+                                                             *g:gt_data_dir*
+Storage defaults to ~/.vim/gutenberg-typist/. Override before first use: >
 
-    let g:gt_hub_token = 'gt_...'
+    let g:gt_data_dir = '/path/to/typing-data'
 <
-g:gt_hub_url overrides the guild instance for self-hosted boards.
+Progress checkpoints run every save_interval_ms while text changes. Closing a
+pane or exiting Vim also saves. Save failures are reported instead of silently
+claiming success.
 
 ==============================================================================
 4. HIGHLIGHTS                                                  *gt-highlights*
@@ -118,18 +111,33 @@ Everything lives under ~/.vim/gutenberg-typist/ : >
     session_log.json                      one record per typing session
 <
 Each finished session appends one immutable record (machine, date, book,
-chars, errors, corrections, active time). Nothing leaves the machine
-except what you see in an export: no keystroke timings, no clock times —
-dates only. Stats from before the session log are folded in once as a
+chars, errors, corrections, active time). Session records include dates but
+no precise timestamps or typed content. The exported progress extension also
+contains last_active timestamps so newer progress wins on import. Stats from
+before the session log are folded in once as a
 single "legacy" record per machine.
 Cross-machine sync is |:GT-export| on one machine, copy the file, and
-|:GT-import| on the other. The public leaderboard is one command —
-|:GT-publish| — or upload an export on the guild's /account page:
+|:GT-import| on the other. Upload an export on the guild's /account page, or
+enable the optional companion: >
+
+    runtime extras/guild/plugin/gt_guild.vim
+    let g:gt_hub_url = 'https://your-guild.example'
+    let g:gt_hub_token = 'gt_...'
+    GTGuildPublish
+<
+Use your board's URL and token. :GTGuildPublish replaces the former :GT publish.
+See extras/guild/README.md for details.
+
 
     https://5x5x5x5.github.io/typist-guild/
 
 ==============================================================================
 6. SPECIAL CHARACTERS                                            *gt-digraphs*
+
+Typing metrics count Unicode characters, independently of byte offsets used
+for saved progress and Vim highlighting. Accuracy is correct final characters
+/ (final characters + corrections). Final WPM uses active time; live WPM uses
+the configured rolling window.
 
 Books keep their original typography: em dashes, curly quotes, accented
 words. Type them with Vim's built-in |digraphs|: in insert mode press

@@ -2,7 +2,9 @@ let s:base_dir = ''
 
 function! s:GetBaseDir() abort
   if s:base_dir ==# ''
-    let s:base_dir = expand('~/.vim/gutenberg-typist')
+    let l:override = get(g:, 'gt_data_dir', '')
+    let s:base_dir = type(l:override) == v:t_string && l:override !=# ''
+          \ ? expand(l:override) : expand('~/.vim/gutenberg-typist')
   endif
   return s:base_dir
 endfunction
@@ -56,15 +58,33 @@ function! s:ReadJson(path) abort
   endtry
 endfunction
 
-function! s:WriteJson(path, data) abort
+let s:temp_counter = 0
+function! s:AtomicWrite(path, lines, flags) abort
+  let s:temp_counter += 1
+  let l:tmp = a:path . '.tmp.' . getpid() . '.' . s:temp_counter
   try
     " EnsureDir inside the try: mkdir throws E739 when a path component
     " is an existing file or the parent is unwritable.
     call s:EnsureDir(fnamemodify(a:path, ':h'))
-    let l:encoded = json_encode(a:data)
-    call writefile([l:encoded], a:path)
+    if writefile(a:lines, l:tmp, a:flags) != 0
+      throw 'temporary write failed'
+    endif
+    if rename(l:tmp, a:path) != 0
+      throw 'atomic rename failed'
+    endif
     return v:true
   catch
+    call delete(l:tmp)
+    echomsg 'GT: Failed to save ' . a:path . ': ' . v:exception
+    return v:false
+  endtry
+endfunction
+
+function! s:WriteJson(path, data) abort
+  try
+    return s:AtomicWrite(a:path, [json_encode(a:data)], '')
+  catch
+    echomsg 'GT: Failed to save ' . a:path . ': ' . v:exception
     return v:false
   endtry
 endfunction
@@ -77,9 +97,7 @@ function! s:ReadFile(path) abort
 endfunction
 
 function! s:WriteFile(path, content) abort
-  call s:EnsureDir(fnamemodify(a:path, ':h'))
-  call writefile(split(a:content, "\n", 1), a:path, 'b')
-  return v:true
+  return s:AtomicWrite(a:path, split(a:content, "\n", 1), 'b')
 endfunction
 
 " Book text
@@ -125,26 +143,6 @@ function! gt#storage#LoadSession(book_id) abort
   return s:ReadJson(s:SessionPath(a:book_id))
 endfunction
 
-function! gt#storage#LastSession() abort
-  let l:sessions_dir = s:GetBaseDir() . '/sessions'
-  if !isdirectory(l:sessions_dir)
-    return v:null
-  endif
-  let l:files = glob(l:sessions_dir . '/*.json', 0, 1)
-  if empty(l:files)
-    return v:null
-  endif
-  let l:latest = v:null
-  let l:latest_time = 0
-  for l:file in l:files
-    let l:data = s:ReadJson(l:file)
-    if l:data isnot v:null && has_key(l:data, 'last_active') && l:data.last_active > l:latest_time
-      let l:latest = l:data
-      let l:latest_time = l:data.last_active
-    endif
-  endfor
-  return l:latest
-endfunction
 
 " Lifetime stats
 "
@@ -161,6 +159,7 @@ function! s:EmptyCounters() abort
   return {
         \ 'total_chars': 0,
         \ 'correct_chars': 0,
+        \ 'corrections': 0,
         \ 'total_time_seconds': 0,
         \ 'sessions_count': 0,
         \}
@@ -225,13 +224,20 @@ function! s:EnsureMigrated() abort
   if s:migrated
     return
   endif
-  let s:migrated = 1
   let l:stats_path = s:StatsPath()
   if !filereadable(l:stats_path)
+    let s:migrated = 1
     return
   endif
   let l:log = s:RawLog()
+  let l:existing = {}
+  for l:record in l:log
+    if type(l:record) == v:t_dict && type(get(l:record, 'id', 0)) == v:t_string
+      let l:existing[l:record.id] = 1
+    endif
+  endfor
   let l:today = strftime('%Y-%m-%d')
+  let l:changed = 0
   for [l:id, l:rec] in items(s:LoadLifetimeV2().machines)
     if type(l:rec) != v:t_dict
       continue
@@ -239,8 +245,12 @@ function! s:EnsureMigrated() abort
     let l:chars = s:NumOr0(get(l:rec, 'total_chars', 0))
     let l:correct = s:NumOr0(get(l:rec, 'correct_chars', 0))
     let l:secs = s:NormalizeSeconds(s:NumOr0(get(l:rec, 'total_time_seconds', 0)))
+    let l:id_uuid = gt#util#LegacyUuid(l:id)
+    if has_key(l:existing, l:id_uuid)
+      continue
+    endif
     call add(l:log, {
-          \ 'id': gt#util#LegacyUuid(l:id),
+          \ 'id': l:id_uuid,
           \ 'machine': l:id,
           \ 'date': l:today,
           \ 'legacy': v:true,
@@ -250,9 +260,17 @@ function! s:EnsureMigrated() abort
           \ 'chars_typed': l:chars,
           \ 'errors_uncorrected': l:chars > l:correct ? l:chars - l:correct : 0,
           \})
+    let l:existing[l:id_uuid] = 1
+    let l:changed = 1
   endfor
-  call s:WriteJson(s:LogPath(), l:log)
-  call rename(l:stats_path, l:stats_path . '.v0')
+  if l:changed && !s:WriteJson(s:LogPath(), l:log)
+    return
+  endif
+  if rename(l:stats_path, l:stats_path . '.v0') != 0
+    echomsg 'GT: Legacy counters were imported but could not be retired; migration will retry.'
+    return
+  endif
+  let s:migrated = 1
 endfunction
 
 function! gt#storage#LoadSessionLog() abort
@@ -299,10 +317,12 @@ function! gt#storage#LoadLifetimeStats() abort
     endif
     let l:chars = s:NumOr0(get(l:rec, 'chars_typed', 0))
     let l:errors = s:NumOr0(get(l:rec, 'errors_uncorrected', 0))
+    let l:corrections = s:NumOr0(get(l:rec, 'corrections', 0))
     let l:active = s:NumOr0(get(l:rec, 'active_ms', 0))
     let l:agg.total_chars += l:chars
     let l:agg.correct_chars += l:chars > l:errors ? l:chars - l:errors : 0
-    let l:agg.total_time_seconds += l:active / 1000
+    let l:agg.corrections += l:corrections
+    let l:agg.total_time_seconds += l:active / 1000.0
     let l:machines[get(l:rec, 'machine', '?')] = 1
     if get(l:rec, 'legacy', v:false)
       let l:lc = get(l:rec, 'legacy_counters', {})
@@ -390,6 +410,44 @@ function! s:SanitizeSession(book_id, incoming) abort
   return l:clean
 endfunction
 
+function! s:IsSchema1Record(rec) abort
+  if type(a:rec) != v:t_dict || type(get(a:rec, 'id', 0)) != v:t_string
+        \ || a:rec.id !~# '^\x\{8}-\x\{4}-\x\{4}-\x\{4}-\x\{12}$'
+        \ || type(get(a:rec, 'machine', 0)) != v:t_string || a:rec.machine ==# ''
+        \ || type(get(a:rec, 'date', 0)) != v:t_string
+        \ || a:rec.date !~# '^\d\{4}-\d\{2}-\d\{2}$'
+    return 0
+  endif
+  for l:key in ['active_ms', 'wall_ms', 'chars_typed', 'errors_uncorrected']
+    if type(get(a:rec, l:key, v:null)) != v:t_number || a:rec[l:key] < 0
+      return 0
+    endif
+  endfor
+  if a:rec.active_ms > a:rec.wall_ms || a:rec.errors_uncorrected > a:rec.chars_typed
+    return 0
+  endif
+  if has_key(a:rec, 'corrections') && (type(a:rec.corrections) != v:t_number || a:rec.corrections < 0)
+    return 0
+  endif
+  if has_key(a:rec, 'legacy') && type(a:rec.legacy) != v:t_bool
+    return 0
+  endif
+  if has_key(a:rec, 'range')
+    let l:range = a:rec.range
+    if type(l:range) != v:t_dict || type(get(l:range, 'start', v:null)) != v:t_number
+          \ || type(get(l:range, 'end', v:null)) != v:t_number
+          \ || l:range.start < 0 || l:range.end < l:range.start
+      return 0
+    endif
+  endif
+  if get(a:rec, 'legacy', v:false)
+    return type(get(a:rec, 'legacy_counters', v:null)) == v:t_dict
+  endif
+  let l:book = get(a:rec, 'book', v:null)
+  return type(l:book) == v:t_dict && type(get(l:book, 'gutenberg_id', v:null)) == v:t_number
+        \ && l:book.gutenberg_id > 0
+endfunction
+
 function! gt#storage#ImportBundle(path) abort
   let l:bundle = s:ReadJson(a:path)
   if l:bundle is v:null
@@ -414,6 +472,14 @@ function! gt#storage#ImportBundle(path) abort
     endif
     return {'ok': v:false, 'msg': 'Not a schema-1 bundle: ' . a:path}
   endif
+  if has_key(l:bundle, 'gt_progress') && type(l:bundle.gt_progress) != v:t_dict
+    return {'ok': v:false, 'msg': 'Invalid gt_progress object in bundle'}
+  endif
+  for l:record in l:bundle.sessions
+    if !s:IsSchema1Record(l:record)
+      return {'ok': v:false, 'msg': 'Invalid schema-1 session record in bundle'}
+    endif
+  endfor
 
   call s:EnsureMigrated()
   let l:log = s:RawLog()
@@ -464,7 +530,9 @@ function! gt#storage#ImportBundle(path) abort
     if l:merged isnot v:null
       " Write directly rather than via SaveSession, which would re-stamp
       " last_active and make every imported record look brand-new.
-      call s:WriteJson(s:SessionPath(l:book_id), l:merged)
+      if !s:WriteJson(s:SessionPath(l:book_id), l:merged)
+        return {'ok': v:false, 'msg': 'Failed to save progress for book ' . l:book_id}
+      endif
       let l:imported_books += 1
     endif
   endfor

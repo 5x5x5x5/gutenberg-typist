@@ -26,31 +26,15 @@ function! gt#util#OffsetToPos(lines, offset) abort
   return [l:last - 1, strlen(a:lines[l:last - 1])]
 endfunction
 
-" Debounce: returns a dict with .call(...) and .close() methods
-function! gt#util#Debounce(Fn, delay_ms) abort
-  let l:state = {'timer': -1, 'Fn': a:Fn, 'delay': a:delay_ms}
-
-  function! l:state.call(...) abort
-    if self.timer != -1
-      call timer_stop(self.timer)
-    endif
-    let l:Callback = self.Fn
-    let self.timer = timer_start(self.delay, {-> l:Callback()})
-  endfunction
-
-  function! l:state.close() abort
-    if self.timer != -1
-      call timer_stop(self.timer)
-      let self.timer = -1
-    endif
-  endfunction
-
-  return l:state
-endfunction
-
 function! gt#util#UriEncode(str) abort
-  return substitute(a:str, '[^A-Za-z0-9_.~-]',
-        \ '\=printf("%%%02X", char2nr(submatch(0)))', 'g')
+  " URLs percent-encode UTF-8 bytes, not Unicode code points.
+  let l:encoded = ''
+  for l:i in range(strlen(a:str))
+    let l:byte = strpart(a:str, l:i, 1)
+    let l:encoded .= l:byte =~# '^[A-Za-z0-9_.~-]$'
+          \ ? l:byte : printf('%%%02X', char2nr(l:byte))
+  endfor
+  return l:encoded
 endfunction
 
 " Session identity (SPEC.md schema 1). Seeded once per Vim instance.

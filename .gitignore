@@ -10,5 +10,9 @@ tags
 Thumbs.db
 
 # Plugin data (local cache)
-# The actual book cache lives in ~/.local/share/nvim/gut-typist/
+# The book cache lives in ~/.vim/gutenberg-typist/
 doc/tags
+
+# Python test artifacts
+__pycache__/
+*.py[cod]

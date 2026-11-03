@@ -1,4 +1,5 @@
 let s:initialized = v:false
+let s:line_offsets = {}
 
 function! s:EnsureTypes() abort
   if s:initialized
@@ -18,20 +19,22 @@ function! gt#highlight#Apply(source_buf, source_lines, typed_len, matches, visib
   let l:cfg = gt#config#Get()
   let l:hl = l:cfg.highlights
 
-  " Clear existing props in buffer
+  " Replace only the visible range; clearing every property in a large
+  " source buffer for each keystroke makes long books increasingly costly.
   for l:type_name in [l:hl.correct, l:hl.wrong, l:hl.untyped, l:hl.cursor]
-    call prop_remove({'type': l:type_name, 'bufnr': a:source_buf, 'all': v:true})
+    call prop_remove({'type': l:type_name, 'bufnr': a:source_buf, 'all': v:true},
+          \ a:visible_top + 1, a:visible_bot + 1)
   endfor
 
   " Calculate character offset for visible_top (0-indexed)
-  let l:offset = 0
-  let l:i = 0
-  while l:i < a:visible_top
-    if l:i < len(a:source_lines)
-      let l:offset += strlen(a:source_lines[l:i]) + 1  " +1 for \n
-    endif
-    let l:i += 1
-  endwhile
+  if !has_key(s:line_offsets, a:source_buf)
+    let l:offsets = [0]
+    for l:line in a:source_lines
+      call add(l:offsets, l:offsets[-1] + strchars(l:line) + 1)
+    endfor
+    let s:line_offsets[a:source_buf] = l:offsets
+  endif
+  let l:offset = s:line_offsets[a:source_buf][min([a:visible_top, len(a:source_lines)])]
 
   " Check if we can use prop_add_list for batching
   let l:has_batch = exists('*prop_add_list')
@@ -53,11 +56,12 @@ function! gt#highlight#Apply(source_buf, source_lines, typed_len, matches, visib
     let l:line_offset = l:offset
 
     let l:col = 0
+    let l:char_idx = 0
     " l:col walks byte offsets (text properties are byte-addressed); \zs
     " splits on character boundaries so strlen gives each char's byte length.
     for l:ch in split(l:line, '\zs')
       let l:char_len = strlen(l:ch)
-      let l:char_pos = l:line_offset + l:col + 1  " 1-indexed into matches
+      let l:char_pos = l:line_offset + l:char_idx + 1
 
       if l:char_pos == a:typed_len + 1
         let l:hl_group = l:hl.cursor
@@ -86,9 +90,10 @@ function! gt#highlight#Apply(source_buf, source_lines, typed_len, matches, visib
       endif
 
       let l:col += l:char_len
+      let l:char_idx += 1
     endfor
 
-    let l:offset += strlen(l:line) + 1  " +1 for \n
+    let l:offset += strchars(l:line) + 1  " +1 for newline
     let l:line_idx += 1
   endwhile
 
@@ -107,4 +112,7 @@ function! gt#highlight#Clear(source_buf) abort
   for l:name in ['GTCorrect', 'GTWrong', 'GTUntyped', 'GTCursor']
     call prop_remove({'type': l:name, 'bufnr': a:source_buf, 'all': v:true})
   endfor
+  if has_key(s:line_offsets, a:source_buf)
+    call remove(s:line_offsets, a:source_buf)
+  endif
 endfunction
