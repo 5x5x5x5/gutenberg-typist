@@ -2,7 +2,7 @@
 
 A Vim plugin for touch typing practice using books from [Project Gutenberg](https://www.gutenberg.org/).
 
-Learned to type with [GNU gtypist](https://www.gnu.org/software/gtypist/)? This is the graduation: no more drills — keep your fingers sharp on the real thing, from *Moby-Dick* to *Ulysses*. Then compare notes at the [typist guild](https://5x5x5x5.github.io/typist-guild/).
+Learned to type with [GNU gtypist](https://www.gnu.org/software/gtypist/)? This is the graduation: no more drills — keep your fingers sharp on the real thing, from *Moby-Dick* to *Ulysses*. Then compare notes at the [typist guild](https://danielsiegle.com/typist-guild/).
 
 Search for any book, and gutenberg-typist opens a split-pane view: the source text on the left with per-character color feedback, and a typing buffer on the right. Real-time WPM, accuracy, and progress are displayed in the statusline. Sessions are saved automatically so you can pick up where you left off.
 
@@ -77,7 +77,7 @@ Select a book from the picker, and start typing. Characters in the source pane t
 
 ### Special characters
 
-Books keep their original typography — em dashes, curly quotes, accented words like *fiancée*. Type them with Vim digraphs: `CTRL-K` plus two characters in insert mode (`CTRL-K -M` → —). See the [digraphs guide](https://5x5x5x5.github.io/gutenberg-typist/digraphs.html) or `:help gt-digraphs`.
+Books keep their original typography — em dashes, curly quotes, accented words like *fiancée*. Type them with Vim digraphs: `CTRL-K` plus two characters in insert mode (`CTRL-K -M` → —). See the [digraphs guide](https://danielsiegle.com/gutenberg-typist/digraphs.html) or `:help gt-digraphs`.
 
 ## Highlights
 

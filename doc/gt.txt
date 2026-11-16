@@ -6,7 +6,7 @@ Type real books, inside Vim. Learned to type with GNU gtypist? This is the
 graduation: no more drills — keep your fingers sharp on the classics, then
 compare notes at the typist guild leaderboard.
 
-    https://5x5x5x5.github.io/typist-guild/
+    https://danielsiegle.com/typist-guild/
 
 ==============================================================================
 CONTENTS                                                         *gt-contents*
@@ -129,7 +129,7 @@ Use your board's URL and token. :GTGuildPublish replaces the former :GT publish.
 See extras/guild/README.md for details.
 
 
-    https://5x5x5x5.github.io/typist-guild/
+    https://danielsiegle.com/typist-guild/
 
 ==============================================================================
 6. SPECIAL CHARACTERS                                            *gt-digraphs*
@@ -149,6 +149,6 @@ CTRL-K and two characters. The most common in Gutenberg texts:
 
 Accent pattern: letter + ' (acute), ! (grave), > (circumflex),
 : (umlaut), ? (tilde), , (cedilla). List everything with |:digraphs|.
-Full guide: https://5x5x5x5.github.io/gutenberg-typist/digraphs.html
+Full guide: https://danielsiegle.com/gutenberg-typist/digraphs.html
 
 vim:tw=78:ts=8:noet:ft=help:norl:
